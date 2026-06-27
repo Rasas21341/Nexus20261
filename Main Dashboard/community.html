@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus - Community Management Console</title>
+  <script>
+    // --- Nexus session identity bootstrap -------------------------------
+    // Resolve the REAL authenticated Discord account from the server session
+    // and expose it globally. Never read cached identity from localStorage.
+    window.NEXUS_CURRENT_USER = '';
+    window.NEXUS_CURRENT_USER_ID = '';
+    window.NEXUS_CURRENT_DISPLAY_NAME = '';
+    (async function resolveNexusSession() {
+      try {
+        const resp = await fetch('/api/user', { credentials: 'include' });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.loggedIn && data.user) {
+            window.NEXUS_CURRENT_USER = data.user.username;
+            window.NEXUS_CURRENT_USER_ID = data.user.id;
+            window.NEXUS_CURRENT_DISPLAY_NAME = data.user.global_name || data.user.username;
+          }
+        }
+      } catch (e) { /* leave defaults */ }
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    body { background-color: #0c111d; font-family: 'Inter', sans-serif; }
+    .phase-in-view { animation: phaseInViewAnimation 0.6s ease-out forwards; opacity: 0; }
+    .application-modal-scroll { max-height: 72vh; overflow-y: auto; }
+    @keyframes phaseInViewAnimation { from { opacity: 0; transform: scale(0.99); } to { opacity: 1; transform: scale(1); } }
+  </style>
+</head>
+<body class="text-slate-200 min-h-screen flex flex-col phase-in-view selection:bg-blue-600">
+
+  <header class="w-full border-b border-zinc-900 bg-slate-950 px-6 py-3.5 flex items-center justify-between">
+    <div class="flex items-center space-x-4">
+      <div id="headerCommunityLogo" class="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 hidden overflow-hidden text-base flex items-center justify-center">🏢</div>
+      <div class="text-xl font-black tracking-tighter italic">
+        <span class="text-blue-600 pr-[1px]">N</span><span class="text-white opacity-95">EXUS</span>
+      </div>
+      <span class="text-zinc-700 text-sm">/</span>
+      <span id="headerCommunityName" class="text-xs font-bold text-zinc-400 bg-zinc-900 px-3 py-1 rounded">Community Panel</span>
+    </div>
+
+    <div class="flex items-center space-x-4">
+      <button onclick="toggleViolationsBox()" class="bg-red-950/40 hover:bg-red-950/90 text-red-400 border border-red-900 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-2 transition cursor-pointer">
+        <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
+        <span>Community Violations</span>
+      </button>
+      <a href="panel.html" class="text-xs font-semibold text-zinc-400 hover:text-white transition">&larr; Exit Console</a>
+    </div>
+  </header>
+
+  <div id="violationsBoxModal" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 w-full max-w-lg rounded-xl p-6 space-y-4 relative shadow-2xl">
+      <div class="absolute top-5 right-5 text-blue-500">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
+      </div>
+      <div>
+        <h3 class="text-base font-bold text-white">Historical Violations Log</h3>
+        <p class="text-xs text-zinc-500">Only structural data logs pinned directly to this current node container instance.</p>
+      </div>
+      <div id="violationsLogList" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+      <div class="flex justify-end pt-2">
+        <button onclick="toggleViolationsBox()" class="bg-zinc-900 border border-zinc-800 px-4 py-2 text-xs font-bold rounded text-zinc-300 hover:text-white cursor-pointer">Close Log View</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="applicationBuilderModal" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 w-full max-w-3xl rounded-xl p-6 space-y-4 relative shadow-2xl">
+      <div class="pr-10">
+        <h3 id="applicationBuilderTitle" class="text-lg font-black text-white">Create Application</h3>
+        <p class="text-xs text-zinc-500">Build a Google Forms-style application with questions, sharing, and locks.</p>
+      </div>
+      <div class="application-modal-scroll space-y-4 pr-1">
+        <input type="hidden" id="applicationBuilderId">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="space-y-2">
+            <label class="text-[10px] font-black tracking-wide uppercase text-zinc-400">Application Name</label>
+            <input id="applicationBuilderName" type="text" placeholder="EX: Staff Application" class="w-full bg-zinc-950 border border-zinc-900 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+          </div>
+          <div class="flex items-end">
+            <label class="w-full bg-zinc-900/60 border border-zinc-800 rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer">
+              <span class="text-sm font-bold text-zinc-300">Lock Form</span>
+              <input id="applicationBuilderLocked" type="checkbox" class="w-4 h-4 accent-blue-500">
+            </label>
+          </div>
+        </div>
+        <div class="space-y-2">
+          <label class="text-[10px] font-black tracking-wide uppercase text-zinc-400">Description</label>
+          <textarea id="applicationBuilderDescription" placeholder="Tell applicants what this form is for..." class="w-full min-h-20 bg-zinc-950 border border-zinc-900 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"></textarea>
+        </div>
+        <div class="border border-zinc-900 rounded-xl p-4 space-y-3 bg-zinc-950/40">
+          <div class="flex items-center justify-between">
+            <div>
+              <h4 class="text-sm font-black text-white">Locked Message</h4>
+              <p class="text-[10px] text-zinc-500">Shown to anyone who opens this form while it is locked.</p>
+            </div>
+          </div>
+          <textarea id="applicationBuilderLockedMessage" placeholder="EX: Applications are currently closed." class="w-full min-h-16 bg-zinc-950 border border-zinc-900 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"></textarea>
+        </div>
+        <div class="border border-zinc-900 rounded-xl p-4 space-y-3 bg-zinc-950/40">
+          <div class="flex items-center justify-between">
+            <div>
+              <h4 class="text-sm font-black text-white">Questions</h4>
+              <p class="text-[10px] text-zinc-500">Type your own question in the box. Use Create Question to add more.</p>
+            </div>
+            <button onclick="addQuestionToBuilder()" class="bg-blue-600 hover:bg-blue-700 text-white font-black text-xs px-4 py-2 rounded-lg transition shadow cursor-pointer">Create Question</button>
+          </div>
+          <div id="applicationBuilderQuestions" class="space-y-3"></div>
+        </div>
+      </div>
+      <div class="flex justify-end space-x-2 border-t border-zinc-900 pt-4">
+        <button onclick="closeApplicationBuilderModal()" class="bg-zinc-900 border border-zinc-800 px-4 py-2 text-xs font-bold rounded-lg text-zinc-300 hover:text-white cursor-pointer">Close</button>
+        <button onclick="commitApplicationBuilder()" class="bg-blue-600 hover:bg-blue-700 text-white font-black text-xs px-5 py-2 rounded-lg transition shadow cursor-pointer">Save Application</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="applicationResultsModal" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 w-full max-w-4xl rounded-xl p-6 space-y-4 relative shadow-2xl">
+      <div class="pr-10">
+        <h3 class="text-lg font-black text-white">Application Results</h3>
+        <p class="text-xs text-zinc-500">Review submissions without showing results on the public application page.</p>
+      </div>
+      <div class="application-modal-scroll space-y-4 pr-1" id="applicationResultsList"></div>
+      <div class="flex justify-end border-t border-zinc-900 pt-4">
+        <button onclick="closeApplicationResultsModal()" class="bg-zinc-900 border border-zinc-800 px-4 py-2 text-xs font-bold rounded-lg text-zinc-300 hover:text-white cursor-pointer">Close Results</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex-grow flex w-full">
+    
+    <aside class="w-72 border-r border-zinc-900 bg-slate-950/40 p-4 space-y-1.5 flex flex-col justify-between">
+      <div class="space-y-1.5 w-full">
+        <div class="px-3 pb-3 pt-1 text-[10px] font-bold tracking-wider text-zinc-500 uppercase">General</div>
+
+        <a href="panel.html" class="w-full flex items-center space-x-3.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition group text-left cursor-pointer text-zinc-300 hover:bg-zinc-900/50 hover:text-white">
+          <svg class="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          <span>My Servers</span>
+        </a>
+
+        <div class="px-3 pb-3 pt-1 text-[10px] font-bold tracking-wider text-zinc-500 uppercase">Management Node</div>
+
+        <button onclick="navigateToModerationConsole()" class="w-full flex items-center space-x-3.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition group text-left cursor-pointer text-zinc-300 hover:bg-zinc-900/50 hover:text-white">
+          <svg class="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          <span>Moderation Panel</span>
+        </button>
+
+        <button onclick="switchView('Community Settings', this)" class="w-full flex items-center space-x-3.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition group text-left cursor-pointer text-zinc-300 hover:bg-zinc-900/50 hover:text-white">
+          <svg class="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>Community Settings</span>
+        </button>
+
+        <button onclick="switchView('Members', this)" class="w-full flex items-center space-x-3.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition group text-left cursor-pointer text-zinc-300 hover:bg-zinc-900/50 hover:text-white">
+          <svg class="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+          <span>Members</span>
+        </button>
+
+        <button onclick="switchView('Applications', this)" class="w-full flex items-center space-x-3.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition group text-left cursor-pointer text-zinc-300 hover:bg-zinc-900/50 hover:text-white">
+          <svg class="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          <span>Applications</span>
+        </button>
+
+        <button onclick="switchView('Activity Settings', this)" class="w-full flex items-center space-x-3.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition group text-left cursor-pointer text-zinc-300 hover:bg-zinc-900/50 hover:text-white">
+          <svg class="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span>Activity Settings</span>
+        </button>
+
+        <button onclick="switchView('Leave Of Absence', this)" class="w-full flex items-center space-x-3.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition group text-left cursor-pointer text-zinc-300 hover:bg-zinc-900/50 hover:text-white">
+          <svg class="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 3V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          <span>Leave Of Absence</span>
+        </button>
+
+        <button onclick="switchView('Audit Logs', this)" class="w-full flex items-center space-x-3.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition group text-left cursor-pointer text-zinc-300 hover:bg-zinc-900/50 hover:text-white">
+          <svg class="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0zM2.05 10.5a9 9 0 011.95-3.95m.05 0l1-1m-1 1l-1 1"/></svg>
+          <span>Audit Logs</span>
+        </button>
+      </div>
+
+      <div class="w-full pt-4 border-t border-zinc-900/80">
+        <button onclick="executeImmediateServerDeletionPipeline()" class="w-full bg-red-950/40 hover:bg-red-600 text-red-400 hover:text-white border border-red-900/60 font-bold text-xs py-2.5 rounded-lg transition text-center cursor-pointer uppercase tracking-wider">
+          Delete Community
+        </button>
+      </div>
+    </aside>
+
+    <main class="flex-grow p-8 bg-zinc-950/20">
+      <div id="dynamicViewFrameCard" class="border border-zinc-900 bg-zinc-950/60 rounded-xl p-8 max-w-4xl min-h-[400px] flex flex-col justify-between">
+        
+        <div class="space-y-4 w-full">
+          <div class="space-y-1">
+            <h2 id="moduleTitle" class="text-xl font-bold text-white tracking-tight">Loading Node...</h2>
+            <p id="moduleSubtitle" class="text-zinc-500 text-sm font-medium">System dynamic staging block loader active.</p>
+          </div>
+          <hr class="border-zinc-900" />
+          
+          <div id="moduleContentPlacementBlock" class="w-full pt-2">
+            </div>
+        </div>
+
+        <div class="border-t border-zinc-900/60 pt-4 mt-6 text-xs text-zinc-600 font-mono">Nexus Control Interface Node Configuration Suite.</div>
+      </div>
+    </main>
+
+  </div>
+
+  <script>
+    let activeCommunityId = '';
+    let activeCommObj = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      activeCommunityId = urlParams.get('id') || 'default_node';
+      const initialView = urlParams.get('init') || 'Dashboard';
+
+      const cachedListData = localStorage.getItem('nexus_community_data_list');
+      if (cachedListData) {
+        const communityArray = JSON.parse(cachedListData);
+        activeCommObj = communityArray.find(c => c.id === activeCommunityId);
+      }
+
+      if (activeCommObj) {
+        if (initialView === 'ApplicationForm') {
+          if (activeCommObj.pendingDeletionTime) {
+            renderPublicApplicationFormView();
+            return;
+          }
+          document.getElementById('headerCommunityName').textContent = activeCommObj.name;
+          const headerLogo = document.getElementById('headerCommunityLogo');
+          if (headerLogo) {
+            if (activeCommObj.logo) {
+              headerLogo.innerHTML = `<img src="${activeCommObj.logo}" class="w-full h-full object-cover" />`;
+              headerLogo.classList.remove('hidden');
+            }
+          }
+        } else {
+          if (activeCommObj.pendingDeletionTime) {
+            alert('Access Interrupted: This server community is down for deletion and locked.');
+            window.location.href = 'panel.html';
+            return;
+          }
+          document.getElementById('headerCommunityName').textContent = activeCommObj.name;
+          const headerLogo = document.getElementById('headerCommunityLogo');
+          if (headerLogo) {
+            if (activeCommObj.logo) {
+              headerLogo.innerHTML = `<img src="${activeCommObj.logo}" class="w-full h-full object-cover" />`;
+              headerLogo.classList.remove('hidden');
+            }
+          }
+        }
+      }
+      if(initialView === 'ApplicationForm') {
+        renderPublicApplicationFormView();
+        return;
+      }
+
+      const viewIndexMap = {
+        'Community Settings': 1,
+        'Members': 2,
+        'Applications': 3,
+        'Activity Settings': 4,
+        'Leave Of Absence': 5,
+        'Audit Logs': 6
+      };
+      const targetView = initialView === 'Dashboard' ? 'Community Settings' : initialView;
+      const targetButton = document.querySelectorAll('aside button')[viewIndexMap[targetView] || 1];
+      switchView(targetView, targetButton);
+    });
+
+    function navigateToModerationConsole() {
+      if (activeCommObj && activeCommObj.pendingDeletionTime) {
+        return alert('Access Interrupted: This server community is down for deletion and locked.');
+      }
+      window.location.href = `mpanel.html?id=${activeCommunityId}`;
+    }
+
+    function executeImmediateServerDeletionPipeline() {
+      if (confirm('Are you sure you want to mark this server community down for deletion? Access will immediately be locked out, and data will purge completely from all records after 1 hour.')) {
+        const globalData = localStorage.getItem('nexus_community_data_list');
+        if (globalData) {
+          let communityArray = JSON.parse(globalData);
+          const itemIdx = communityArray.findIndex(c => c.id === activeCommunityId);
+          if (itemIdx !== -1) {
+            // Set precise expiration timestamp mapping exactly one hour out from now
+            communityArray[itemIdx].pendingDeletionTime = (Date.now() + (60 * 60 * 1000)).toString();
+            localStorage.setItem('nexus_community_data_list', JSON.stringify(communityArray));
+            alert('Community status updated to down for deletion. Dashboard locks applied.');
+            window.location.href = 'panel.html';
+          }
+        }
+      }
+    }
+
+    function switchView(viewName, element) {
+      if (activeCommObj && activeCommObj.pendingDeletionTime) {
+        return alert('Access Interrupted: This server community is down for deletion and locked.');
+      }
+
+      document.querySelectorAll('aside button').forEach(btn => {
+        btn.classList.remove('bg-zinc-900', 'text-white');
+        btn.classList.add('text-zinc-300');
+      });
+      if(element) {
+        element.classList.add('bg-zinc-900', 'text-white');
+        element.classList.remove('text-zinc-300');
+      }
+      
+      document.getElementById('moduleTitle').textContent = viewName;
+      document.getElementById('moduleSubtitle').textContent = `Configuration control channels for ${viewName} options are now live.`;
+      
+      const contentBlock = document.getElementById('moduleContentPlacementBlock');
+      contentBlock.innerHTML = '';
+
+      if (viewName === 'Community Settings') {
+        const customCodeVal = (activeCommObj && activeCommObj.customCode) ? activeCommObj.customCode : '';
+        const erlcApiVal = (activeCommObj && activeCommObj.erlcApiKey) ? activeCommObj.erlcApiKey : '';
+        contentBlock.innerHTML = `
+          <div class="space-y-5 max-w-md">
+            <div class="space-y-2">
+              <label class="text-xs font-black tracking-wide uppercase text-zinc-400">Set Unique Community Server Code</label>
+              <div class="flex space-x-3">
+                <input type="text" id="settingCustomCodeField" value="${customCodeVal}" placeholder="EX: WEST-VIRGINIA-RP" class="bg-zinc-950 border border-zinc-900 rounded px-4 py-2 text-xs text-white uppercase focus:outline-none focus:border-blue-500 flex-grow font-mono font-bold tracking-wide">
+                <button onclick="commitCommunityCustomCode()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-5 py-2 rounded transition shadow cursor-pointer">Save Code</button>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <label class="text-xs font-black tracking-wide uppercase text-zinc-400">ERLC API Key</label>
+              <input type="password" id="settingErlcApiKeyField" value="${erlcApiVal}" placeholder="Paste ERLC API key..." class="w-full bg-zinc-950 border border-zinc-900 rounded px-4 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+              <button onclick="commitErlcApiKey()" class="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-black text-xs px-4 py-2 rounded transition shadow cursor-pointer">Save API Key</button>
+            </div>
+          </div>
+        `;
+      } 
+      else if (viewName === 'Members') {
+        let membersMarkup = `<div class="space-y-3 max-w-2xl overflow-y-auto max-h-80 pr-2">`;
+        
+        if (!activeCommObj || !activeCommObj.members || activeCommObj.members.length === 0) {
+          const fallbackUser = window.NEXUS_CURRENT_USER || 'Guest';
+          if(activeCommObj) {
+            activeCommObj.members = [{
+              username: fallbackUser,
+              discordTag: `${fallbackUser}#0000`,
+              discordId: 'ID_' + Math.floor(100000 + Math.random() * 900000),
+              role: 'Owner',
+              avatar: ''
+            }];
+          }
+        }
+
+        const sortedMembers = [...activeCommObj.members].sort((a,b) => (b.role === 'Owner') - (a.role === 'Owner'));
+
+        sortedMembers.forEach(member => {
+          const avatarPic = member.avatar ? `<img src="${member.avatar}" class="w-full h-full object-cover"/>` : '👤';
+          const roleBadgeColor = member.role === 'Owner' ? 'bg-amber-950 text-amber-400 border-amber-900/60' : 'bg-zinc-900 text-zinc-400 border-zinc-800';
+          
+          membersMarkup += `
+            <div class="bg-zinc-950/40 border border-zinc-900/80 rounded-xl p-4 flex items-center justify-between">
+              <div class="flex items-center space-x-4">
+                <div class="w-10 h-10 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-sm overflow-hidden text-white font-bold">${avatarPic}</div>
+                <div>
+                  <h4 class="text-xs font-black text-white">@${member.username}</h4>
+                  <div class="flex items-center space-x-2 mt-0.5 text-[10px] text-zinc-500 font-mono">
+                    <span>Tag: ${member.discordTag}</span>
+                    <span>•</span>
+                    <span>ID: ${member.discordId}</span>
+                  </div>
+                </div>
+              </div>
+              <span class="${roleBadgeColor} border px-2.5 py-0.5 rounded text-[9px] uppercase font-mono font-bold tracking-wider">${member.role}</span>
+            </div>
+          `;
+        });
+
+        membersMarkup += `</div>`;
+        contentBlock.innerHTML = membersMarkup;
+      }
+      else if (viewName === 'Applications') {
+        contentBlock.innerHTML = renderApplicationsView();
+      }
+      else {
+        contentBlock.innerHTML = `<p class="text-xs text-zinc-600 italic py-4">Configuration options for ${viewName} are live.</p>`;
+      }
+    }
+
+    function commitCommunityCustomCode() {
+      const codeField = document.getElementById('settingCustomCodeField');
+      if(!codeField) return;
+
+      const codeVal = codeField.value.trim().toUpperCase();
+      if(!codeVal) return alert('Provide a valid text character code.');
+
+      const globalData = localStorage.getItem('nexus_community_data_list');
+      let communityArray = globalData ? JSON.parse(globalData) : [];
+
+      const codeIsTaken = communityArray.some(c => c.id !== activeCommunityId && c.customCode && c.customCode.toUpperCase() === codeVal);
+      if (codeIsTaken) {
+        return alert('Validation Exception: Code is taken. Choose an alternate code sequence.');
+      }
+
+      if(activeCommObj) {
+        activeCommObj.customCode = codeVal;
+        const itemIdx = communityArray.findIndex(c => c.id === activeCommunityId);
+        if (itemIdx !== -1) {
+          communityArray[itemIdx] = activeCommObj;
+          localStorage.setItem('nexus_community_data_list', JSON.stringify(communityArray));
+        }
+        alert(`Unique server code confirmed to [${codeVal}].`);
+      }
+    }
+
+    function commitErlcApiKey() {
+      ensureActiveCommunityObject();
+      const field = document.getElementById('settingErlcApiKeyField');
+      const apiKey = field ? field.value.trim() : '';
+      if (!apiKey) return alert('Provide an ERLC API key.');
+
+      activeCommObj.erlcApiKey = apiKey;
+      persistCommunityData();
+      alert('ERLC API key saved for this community.');
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      }[char]));
+    }
+
+    function ensureActiveCommunityObject() {
+      if (activeCommObj) {
+        ensureApplicationStorage();
+        return true;
+      }
+
+      const fallbackCommunityId = activeCommunityId || 'default_node';
+      const fallbackCommunity = {
+        id: fallbackCommunityId,
+        name: 'Community',
+        logo: '',
+        moderated: 'None',
+        reason: '',
+        moderator: '',
+        acknowledged: false,
+        customCode: '',
+        history: [],
+        punishments: [],
+        members: [],
+        applications: []
+      };
+
+      try {
+        const globalData = localStorage.getItem('nexus_community_data_list');
+        let communityArray = globalData ? JSON.parse(globalData) : [];
+        if (!Array.isArray(communityArray)) communityArray = [];
+
+        const itemIdx = communityArray.findIndex(c => c.id === fallbackCommunityId);
+        if (itemIdx === -1) {
+          communityArray.push(fallbackCommunity);
+          localStorage.setItem('nexus_community_data_list', JSON.stringify(communityArray));
+          activeCommObj = fallbackCommunity;
+        } else {
+          activeCommObj = communityArray[itemIdx];
+        }
+
+        ensureApplicationStorage();
+        const headerName = document.getElementById('headerCommunityName');
+        if (headerName) headerName.textContent = activeCommObj.name;
+        return true;
+      } catch (error) {
+        console.error(error);
+        activeCommObj = fallbackCommunity;
+        ensureApplicationStorage();
+        return true;
+      }
+    }
+
+    function ensureApplicationStorage() {
+      if (!activeCommObj) return;
+      if (!Array.isArray(activeCommObj.applications)) activeCommObj.applications = [];
+      activeCommObj.applications.forEach(app => {
+        if (!Array.isArray(app.questions)) app.questions = [];
+        if (!Array.isArray(app.submissions)) app.submissions = [];
+        if (!app.lockedMessage) app.lockedMessage = 'This application is currently locked.';
+      });
+    }
+
+    function persistCommunityData() {
+      if (!activeCommObj) return;
+      const globalData = localStorage.getItem('nexus_community_data_list');
+      let communityArray = globalData ? JSON.parse(globalData) : [];
+      const itemIdx = communityArray.findIndex(c => c.id === activeCommunityId);
+      if (itemIdx !== -1) {
+        communityArray[itemIdx] = activeCommObj;
+        localStorage.setItem('nexus_community_data_list', JSON.stringify(communityArray));
+      }
+    }
+
+    function renderApplicationsView() {
+      ensureActiveCommunityObject();
+
+      const applications = activeCommObj ? activeCommObj.applications : [];
+      let pendingCount = 0;
+      let approvedCount = 0;
+      let deniedCount = 0;
+
+      applications.forEach(app => {
+        (app.submissions || []).forEach(submission => {
+          if (submission.status === 'Approved') approvedCount++;
+          else if (submission.status === 'Denied') deniedCount++;
+          else pendingCount++;
+        });
+      });
+
+      if (!applications.length) {
+        return `
+          <div class="space-y-5">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h3 class="text-sm font-black text-white">Application Forms</h3>
+                <p class="text-xs text-zinc-500">Create a form, share its link, review responses, and lock it when needed.</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button data-open-application-builder="true" class="bg-blue-600 hover:bg-blue-700 text-white font-black text-xs px-4 py-2.5 rounded-lg transition shadow cursor-pointer">Create Application</button>
+                <button onclick="openApplicationResultsModal()" class="bg-blue-950/50 hover:bg-blue-900 border border-blue-900 text-blue-200 font-black text-xs px-4 py-2.5 rounded-lg transition cursor-pointer">View Results (${pendingCount + approvedCount + deniedCount})</button>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="bg-zinc-900/70 border border-zinc-800 rounded-xl p-4">
+                <p class="text-[10px] font-black uppercase tracking-wider text-zinc-500">Pending</p>
+                <p class="text-3xl font-black text-white">${pendingCount}</p>
+              </div>
+              <div class="bg-zinc-900/70 border border-zinc-800 rounded-xl p-4">
+                <p class="text-[10px] font-black uppercase tracking-wider text-zinc-500">Approved</p>
+                <p class="text-3xl font-black text-white">${approvedCount}</p>
+              </div>
+              <div class="bg-zinc-900/70 border border-zinc-800 rounded-xl p-4">
+                <p class="text-[10px] font-black uppercase tracking-wider text-zinc-500">Denied</p>
+                <p class="text-3xl font-black text-white">${deniedCount}</p>
+              </div>
+            </div>
+            <div class="rounded-xl border border-dashed border-zinc-800 bg-zinc-950/40 p-8 text-center">
+              <p class="text-sm font-bold text-zinc-300">No applications have been created yet.</p>
+              <p class="text-xs text-zinc-500 mt-1">Click Create Application to build your first form.</p>
+            </div>
+          </div>
+        `;
+      }
+
+      let markup = `
+        <div class="space-y-5">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-black text-white">Application Forms</h3>
+              <p class="text-xs text-zinc-500">Manage form links, locks, locked messages, and applicant responses.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button data-open-application-builder="true" class="bg-blue-600 hover:bg-blue-700 text-white font-black text-xs px-4 py-2.5 rounded-lg transition shadow cursor-pointer">Create Application</button>
+              <button onclick="openApplicationResultsModal()" class="bg-blue-950/50 hover:bg-blue-900 border border-blue-900 text-blue-200 font-black text-xs px-4 py-2.5 rounded-lg transition cursor-pointer">View Results (${pendingCount + approvedCount + deniedCount})</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="bg-zinc-900/70 border border-zinc-800 rounded-xl p-4">
+              <p class="text-[10px] font-black uppercase tracking-wider text-zinc-500">Pending</p>
+              <p class="text-3xl font-black text-white">${pendingCount}</p>
+            </div>
+            <div class="bg-zinc-900/70 border border-zinc-800 rounded-xl p-4">
+              <p class="text-[10px] font-black uppercase tracking-wider text-zinc-500">Approved</p>
+              <p class="text-3xl font-black text-white">${approvedCount}</p>
+            </div>
+            <div class="bg-zinc-900/70 border border-zinc-800 rounded-xl p-4">
+              <p class="text-[10px] font-black uppercase tracking-wider text-zinc-500">Denied</p>
+              <p class="text-3xl font-black text-white">${deniedCount}</p>
+            </div>
+          </div>
+          <div class="space-y-4 max-h-[620px] overflow-y-auto pr-2">
+      `;
+
+      applications.forEach(app => {
+        const submissionCount = (app.submissions || []).length;
+        const lockedStatus = app.locked ? 'Locked' : 'Open';
+        const lockedClass = app.locked ? 'bg-red-950/40 text-red-300 border-red-900' : 'bg-emerald-950/40 text-emerald-300 border-emerald-900';
+        let submissionsMarkup = '';
+
+        if ((app.submissions || []).length === 0) {
+          submissionsMarkup = `<p class="text-xs text-zinc-600 italic">No submissions yet.</p>`;
+        } else {
+          submissionsMarkup = `<div class="space-y-3 mt-3">`;
+          app.submissions.forEach(submission => {
+            const answers = (submission.answers || []).map(answer => `
+              <div class="rounded-lg bg-zinc-950/60 border border-zinc-900 p-2.5">
+                <p class="text-[10px] font-black uppercase tracking-wide text-zinc-500">${escapeHtml(answer.questionText)}</p>
+                <p class="text-xs text-zinc-200 mt-1">${escapeHtml(answer.answer)}</p>
+              </div>
+            `).join('');
+
+            submissionsMarkup += `
+              <div class="rounded-xl border border-zinc-900 bg-zinc-900/40 p-3 space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <p class="text-xs font-bold text-white">${escapeHtml(submission.submittedBy || 'Anonymous')}</p>
+                    <p class="text-[10px] text-zinc-500">${escapeHtml(submission.submittedAt || '')}</p>
+                  </div>
+                  <span class="bg-blue-950/40 text-blue-300 border border-blue-900 px-2 py-0.5 rounded text-[9px] font-black uppercase">${escapeHtml(submission.status || 'Pending')}</span>
+                </div>
+                <div class="space-y-2">${answers}</div>
+                <div class="flex items-center gap-2">
+                  <button onclick="reviewApplication('${escapeHtml(app.id)}', '${escapeHtml(submission.id)}', 'Approved')" class="bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-600 px-2.5 py-1.5 rounded text-[10px] font-black cursor-pointer">Approve</button>
+                  <button onclick="reviewApplication('${escapeHtml(app.id)}', '${escapeHtml(submission.id)}', 'Denied')" class="bg-red-950 hover:bg-red-900 text-red-200 border border-red-900 px-2.5 py-1.5 rounded text-[10px] font-black cursor-pointer">Deny</button>
+                </div>
+              </div>
+            `;
+          });
+          submissionsMarkup += `</div>`;
+        }
+
+        markup += `
+          <div class="rounded-xl border border-zinc-900 bg-zinc-950/50 p-4 space-y-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h4 class="text-sm font-black text-white">${escapeHtml(app.name)}</h4>
+                  <span class="${lockedClass} border px-2 py-0.5 rounded text-[9px] font-black uppercase">${lockedStatus}</span>
+                </div>
+                <p class="text-xs text-zinc-500 mt-1">${escapeHtml(app.description || 'No description added.')}</p>
+                <div class="flex items-center gap-2 mt-2 text-[10px] text-zinc-500">
+                  <span>${(app.questions || []).length} Questions</span>
+                  <span>•</span>
+                  <span>${submissionCount} Submissions</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button onclick="copyApplicationLink('${escapeHtml(app.id)}')" class="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 px-2.5 py-1.5 rounded text-[10px] font-black cursor-pointer">Copy Link</button>
+                <button onclick="viewApplicationForm('${escapeHtml(app.id)}')" class="bg-blue-950/50 hover:bg-blue-900 border border-blue-900 text-blue-200 px-2.5 py-1.5 rounded text-[10px] font-black cursor-pointer">View Form</button>
+              </div>
+            </div>
+            ${app.locked ? `<div class="rounded-lg bg-red-950/20 border border-red-900/60 p-3 text-xs text-red-200">${escapeHtml(app.lockedMessage || 'This application is currently locked.')}</div>` : ''}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <button onclick="toggleApplicationLock('${escapeHtml(app.id)}')" class="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 px-3 py-2 rounded-lg text-xs font-black cursor-pointer">${app.locked ? 'Unlock Application' : 'Lock Application'}</button>
+              <button data-open-application-builder="true" data-application-id="${escapeHtml(app.id)}" class="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 px-3 py-2 rounded-lg text-xs font-black cursor-pointer">Edit Questions + Locked Message</button>
+              <button onclick="deleteApplication('${escapeHtml(app.id)}')" class="bg-red-950/30 hover:bg-red-950/70 border border-red-900 text-red-300 px-3 py-2 rounded-lg text-xs font-black cursor-pointer">Delete Application</button>
+            </div>
+          </div>
+        `;
+      });
+
+      markup += `</div></div>`;
+      return markup;
+    }
+
+    function openApplicationResultsModal() {
+      ensureActiveCommunityObject();
+      const modal = document.getElementById('applicationResultsModal');
+      const list = document.getElementById('applicationResultsList');
+      if (!modal || !list) return;
+
+      const applications = activeCommObj.applications || [];
+      let totalSubmissions = 0;
+      applications.forEach(app => {
+        totalSubmissions += (app.submissions || []).length;
+      });
+
+      let markup = `
+        <div class="rounded-xl border border-zinc-900 bg-zinc-900/40 p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-wider text-zinc-500">Total Submissions</p>
+              <p class="text-2xl font-black text-white">${totalSubmissions}</p>
+            </div>
+            <p class="text-xs text-zinc-500">Results are only visible inside the management panel.</p>
+          </div>
+        </div>
+      `;
+
+      if (totalSubmissions === 0) {
+        markup += `<div class="rounded-xl border border-dashed border-zinc-800 bg-zinc-950/40 p-8 text-center text-sm text-zinc-500">No application results yet.</div>`;
+      } else {
+        applications.forEach(app => {
+          const submissions = app.submissions || [];
+          if (!submissions.length) return;
+
+          markup += `
+            <div class="rounded-xl border border-zinc-900 bg-zinc-950/50 p-4 space-y-3">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h4 class="text-sm font-black text-white">${escapeHtml(app.name)}</h4>
+                  <p class="text-xs text-zinc-500">${submissions.length} ${submissions.length === 1 ? 'Submission' : 'Submissions'}</p>
+                </div>
+                <span class="bg-blue-950/40 text-blue-300 border border-blue-900 px-2 py-0.5 rounded text-[9px] font-black uppercase">Results</span>
+              </div>
+              <div class="space-y-3">
+          `;
+
+          submissions.forEach(submission => {
+            const answers = (submission.answers || []).map(answer => `
+              <div class="rounded-lg bg-zinc-950/60 border border-zinc-900 p-2.5">
+                <p class="text-[10px] font-black uppercase tracking-wide text-zinc-500">${escapeHtml(answer.questionText)}</p>
+                <p class="text-xs text-zinc-200 mt-1">${escapeHtml(answer.answer)}</p>
+              </div>
+            `).join('');
+
+            markup += `
+              <div class="rounded-xl border border-zinc-900 bg-zinc-900/40 p-3 space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <p class="text-xs font-bold text-white">${escapeHtml(submission.submittedBy || 'Anonymous')}</p>
+                    <p class="text-[10px] text-zinc-500">${escapeHtml(submission.submittedAt || '')}</p>
+                  </div>
+                  <span class="bg-blue-950/40 text-blue-300 border border-blue-900 px-2 py-0.5 rounded text-[9px] font-black uppercase">${escapeHtml(submission.status || 'Pending')}</span>
+                </div>
+                <div class="space-y-2">${answers}</div>
+                <div class="flex items-center gap-2">
+                  <button onclick="reviewApplication('${escapeHtml(app.id)}', '${escapeHtml(submission.id)}', 'Approved')" class="bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-600 px-2.5 py-1.5 rounded text-[10px] font-black cursor-pointer">Approve</button>
+                  <button onclick="reviewApplication('${escapeHtml(app.id)}', '${escapeHtml(submission.id)}', 'Denied')" class="bg-red-950 hover:bg-red-900 text-red-200 border border-red-900 px-2.5 py-1.5 rounded text-[10px] font-black cursor-pointer">Deny</button>
+                </div>
+              </div>
+            `;
+          });
+
+          markup += `
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      list.innerHTML = markup;
+      modal.classList.remove('hidden');
+    }
+
+    function closeApplicationResultsModal() {
+      document.getElementById('applicationResultsModal').classList.add('hidden');
+    }
+
+    function getBuilderDraftFromDom() {
+      const questions = Array.from(document.querySelectorAll('[data-builder-question-index]')).map(element => {
+        const index = Number(element.dataset.builderQuestionIndex);
+        const typeElement = document.getElementById(`builderQuestionType_${index}`);
+        const textElement = document.getElementById(`builderQuestionText_${index}`);
+        const optionsElement = document.getElementById(`builderQuestionOptions_${index}`);
+        const type = typeElement ? typeElement.value : 'short';
+        const rawOptions = optionsElement ? optionsElement.value : '';
+        return {
+          id: element.dataset.questionId || `Q_${Date.now()}_${index}`,
+          text: textElement ? textElement.value : '',
+          type,
+          options: type === 'multiple' ? rawOptions.split(',').map(option => option.trim()).filter(Boolean) : []
+        };
+      });
+
+      const idField = document.getElementById('applicationBuilderId');
+      const nameField = document.getElementById('applicationBuilderName');
+      const descriptionField = document.getElementById('applicationBuilderDescription');
+      const lockedField = document.getElementById('applicationBuilderLocked');
+      const lockedMessageField = document.getElementById('applicationBuilderLockedMessage');
+
+      return {
+        id: idField ? idField.value : '',
+        name: nameField ? nameField.value : '',
+        description: descriptionField ? descriptionField.value : '',
+        locked: lockedField ? lockedField.checked : false,
+        lockedMessage: lockedMessageField ? lockedMessageField.value : '',
+        questions
+      };
+    }
+
+    function renderBuilderQuestions(questions) {
+      const container = document.getElementById('applicationBuilderQuestions');
+      if (!container) return;
+
+      if (!questions.length) {
+        container.innerHTML = `<div class="rounded-lg border border-dashed border-zinc-800 bg-zinc-950/50 p-5 text-center text-xs text-zinc-500">No questions yet. Click Create Question to add the first question box.</div>`;
+        return;
+      }
+
+      container.innerHTML = questions.map((question, index) => {
+        const type = question.type || 'short';
+        const options = Array.isArray(question.options) ? question.options.join(', ') : '';
+        return `
+          <div data-builder-question-index="${index}" data-question-id="${escapeHtml(question.id || '')}" class="rounded-xl border border-zinc-900 bg-zinc-900/50 p-4 space-y-3">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-xs font-black text-white">Question ${index + 1}</p>
+              <button onclick="removeQuestionFromBuilder(${index})" class="text-red-300 hover:text-red-200 text-[10px] font-black cursor-pointer">Remove</button>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black uppercase tracking-wide text-zinc-500">Question Text</label>
+              <input id="builderQuestionText_${index}" type="text" value="${escapeHtml(question.text || '')}" placeholder="Type your question here..." class="w-full bg-zinc-950 border border-zinc-900 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black uppercase tracking-wide text-zinc-500">Answer Type</label>
+              <select id="builderQuestionType_${index}" onchange="syncBuilderQuestionType(${index})" class="w-full bg-zinc-950 border border-zinc-900 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                <option value="short" ${type === 'short' ? 'selected' : ''}>Short Answer</option>
+                <option value="paragraph" ${type === 'paragraph' ? 'selected' : ''}>Paragraph</option>
+                <option value="multiple" ${type === 'multiple' ? 'selected' : ''}>Multiple Choice</option>
+              </select>
+            </div>
+            <div id="builderOptionsWrap_${index}" class="space-y-2 ${type === 'multiple' ? '' : 'hidden'}">
+              <label class="text-[10px] font-black uppercase tracking-wide text-zinc-500">Multiple Choice Options</label>
+              <input id="builderQuestionOptions_${index}" type="text" value="${escapeHtml(options)}" placeholder="Option 1, Option 2, Option 3" class="w-full bg-zinc-950 border border-zinc-900 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openApplicationBuilderModal(applicationId = '') {
+      try {
+        ensureActiveCommunityObject();
+        const modal = document.getElementById('applicationBuilderModal');
+        if (!modal) return alert('Application popup is missing from the page.');
+        const app = applicationId ? (activeCommObj.applications.find(item => item.id === applicationId) || null) : null;
+        const questions = app ? [...app.questions] : [{ id: `Q_${Date.now()}_0`, text: '', type: 'short', options: [] }];
+
+        document.getElementById('applicationBuilderTitle').textContent = app ? 'Edit Application' : 'Create Application';
+        document.getElementById('applicationBuilderId').value = app ? app.id : '';
+        document.getElementById('applicationBuilderName').value = app ? app.name : '';
+        document.getElementById('applicationBuilderDescription').value = app ? app.description : '';
+        document.getElementById('applicationBuilderLocked').checked = !!(app && app.locked);
+        document.getElementById('applicationBuilderLockedMessage').value = app ? (app.lockedMessage || 'This application is currently locked.') : 'This application is currently locked.';
+
+        renderBuilderQuestions(questions);
+        modal.classList.remove('hidden');
+      } catch (error) {
+        console.error(error);
+        alert('Application popup error: ' + error.message);
+      }
+    }
+
+    function closeApplicationBuilderModal() {
+      document.getElementById('applicationBuilderModal').classList.add('hidden');
+    }
+
+    function addQuestionToBuilder() {
+      try {
+        const draft = getBuilderDraftFromDom();
+        draft.questions.push({ id: `Q_${Date.now()}_${draft.questions.length}`, text: '', type: 'short', options: [] });
+        renderBuilderQuestions(draft.questions);
+      } catch (error) {
+        console.error(error);
+        alert('Question box error: ' + error.message);
+      }
+    }
+
+    function removeQuestionFromBuilder(index) {
+      const draft = getBuilderDraftFromDom();
+      draft.questions.splice(index, 1);
+      renderBuilderQuestions(draft.questions);
+    }
+
+    function syncBuilderQuestionType(index) {
+      const type = document.getElementById(`builderQuestionType_${index}`).value;
+      const wrap = document.getElementById(`builderOptionsWrap_${index}`);
+      if (wrap) wrap.classList.toggle('hidden', type !== 'multiple');
+    }
+
+    function commitApplicationBuilder() {
+      if (!activeCommObj) return alert('Community data is not loaded.');
+      const draft = getBuilderDraftFromDom();
+      const name = draft.name.trim();
+      if (!name) return alert('Provide an application name.');
+
+      const questions = draft.questions.map((question, index) => ({
+        id: question.id || `Q_${Date.now()}_${index}`,
+        text: question.text.trim(),
+        type: question.type || 'short',
+        options: question.type === 'multiple' ? question.options : []
+      })).filter(question => question.text);
+
+      if (!questions.length) return alert('Create at least one question before saving.');
+
+      ensureApplicationStorage();
+      const now = new Date().toLocaleString();
+      const applicationPayload = {
+        id: draft.id || `APP_${Date.now()}`,
+        name,
+        description: draft.description.trim(),
+        locked: draft.locked,
+        lockedMessage: draft.lockedMessage.trim() || 'This application is currently locked.',
+        questions,
+        submissions: [],
+        createdAt: now,
+        updatedAt: now
+      };
+
+      if (draft.id) {
+        const index = activeCommObj.applications.findIndex(item => item.id === draft.id);
+        if (index !== -1) {
+          applicationPayload.submissions = activeCommObj.applications[index].submissions || [];
+          applicationPayload.createdAt = activeCommObj.applications[index].createdAt || now;
+          activeCommObj.applications[index] = applicationPayload;
+        }
+      } else {
+        activeCommObj.applications.push(applicationPayload);
+      }
+
+      persistCommunityData();
+      closeApplicationBuilderModal();
+      if (document.getElementById('moduleTitle').textContent === 'Applications') {
+        const contentBlock = document.getElementById('moduleContentPlacementBlock');
+        contentBlock.innerHTML = renderApplicationsView();
+      }
+      alert('Application saved.');
+    }
+
+    function copyApplicationLink(applicationId) {
+      const link = generateApplicationLink(applicationId);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(() => alert('Form link copied to clipboard.')).catch(() => prompt('Copy this form link:', link));
+      } else {
+        prompt('Copy this form link:', link);
+      }
+    }
+
+    function generateApplicationLink(applicationId) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('init', 'ApplicationForm');
+      url.searchParams.set('appId', applicationId);
+      return url.toString();
+    }
+
+    function viewApplicationForm(applicationId) {
+      window.open(generateApplicationLink(applicationId), '_blank');
+    }
+
+    function toggleApplicationLock(applicationId) {
+      if (!activeCommObj) return;
+      ensureApplicationStorage();
+      const app = activeCommObj.applications.find(item => item.id === applicationId);
+      if (!app) return;
+      app.locked = !app.locked;
+      app.updatedAt = new Date().toLocaleString();
+      persistCommunityData();
+      const contentBlock = document.getElementById('moduleContentPlacementBlock');
+      contentBlock.innerHTML = renderApplicationsView();
+    }
+
+    function deleteApplication(applicationId) {
+      if (!activeCommObj) return;
+      if (!confirm('Delete this application and all of its submissions?')) return;
+      ensureApplicationStorage();
+      activeCommObj.applications = activeCommObj.applications.filter(item => item.id !== applicationId);
+      persistCommunityData();
+      const contentBlock = document.getElementById('moduleContentPlacementBlock');
+      contentBlock.innerHTML = renderApplicationsView();
+    }
+
+    function reviewApplication(applicationId, submissionId, status) {
+      if (!activeCommObj) return;
+      ensureApplicationStorage();
+      const app = activeCommObj.applications.find(item => item.id === applicationId);
+      if (!app) return;
+      const submission = app.submissions.find(item => item.id === submissionId);
+      if (!submission) return;
+      submission.status = status;
+      persistCommunityData();
+      const contentBlock = document.getElementById('moduleContentPlacementBlock');
+      contentBlock.innerHTML = renderApplicationsView();
+    }
+
+    function renderPublicApplicationFormView() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const applicationId = urlParams.get('appId');
+      const title = document.getElementById('moduleTitle');
+      const subtitle = document.getElementById('moduleSubtitle');
+      const contentBlock = document.getElementById('moduleContentPlacementBlock');
+      const frameCard = document.getElementById('dynamicViewFrameCard');
+      const frameFooter = frameCard ? frameCard.querySelector('.font-mono') : null;
+
+      const aside = document.querySelector('aside');
+      const header = document.querySelector('header');
+      const main = document.querySelector('main');
+
+      if (aside) aside.classList.add('hidden');
+      if (header) header.classList.add('hidden');
+      if (main) {
+        main.classList.remove('p-8');
+        main.classList.add('flex', 'items-center', 'justify-center', 'p-4', 'md:p-8');
+      }
+      if (frameCard) {
+        frameCard.classList.remove('justify-between');
+        frameCard.classList.add('justify-center');
+      }
+      if (frameFooter) frameFooter.classList.add('hidden');
+
+      document.querySelectorAll('aside button').forEach(btn => {
+        btn.classList.remove('bg-zinc-900', 'text-white');
+        btn.classList.add('text-zinc-300');
+      });
+
+      if (!applicationId || !activeCommObj || !Array.isArray(activeCommObj.applications)) {
+        title.textContent = 'Application Not Found';
+        subtitle.textContent = 'This form link is missing a valid application ID.';
+        contentBlock.innerHTML = `<div class="rounded-xl border border-red-900 bg-red-950/20 p-6 text-sm text-red-200">This form could not be loaded. It may have been deleted or opened from a different browser profile.</div>`;
+        return;
+      }
+
+      const app = activeCommObj.applications.find(item => item.id === applicationId);
+      if (!app) {
+        title.textContent = 'Application Not Found';
+        subtitle.textContent = activeCommObj.name;
+        contentBlock.innerHTML = `<div class="rounded-xl border border-red-900 bg-red-950/20 p-6 text-sm text-red-200">This application form no longer exists.</div>`;
+        return;
+      }
+
+      title.textContent = app.name;
+      subtitle.textContent = activeCommObj.name;
+
+      if (activeCommObj.pendingDeletionTime || app.locked) {
+        contentBlock.innerHTML = `
+          <div class="max-w-2xl rounded-2xl border border-red-900 bg-red-950/30 p-8 space-y-4">
+            <div class="space-y-2">
+              <h3 class="text-xl font-black text-white">${escapeHtml(app.name)}</h3>
+            </div>
+            <div class="rounded-xl border border-red-900 bg-red-950/50 p-4 text-sm text-red-100">${escapeHtml(app.lockedMessage || 'This application is currently locked.')}</div>
+          </div>
+        `;
+        return;
+      }
+
+      const questionMarkup = (app.questions || []).map((question, index) => renderApplicationQuestionInput(question, index, app.id)).join('');
+
+      contentBlock.innerHTML = `
+        <div class="max-w-3xl space-y-5">
+          <div class="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-6 space-y-3">
+            <h3 class="text-2xl font-black text-white">${escapeHtml(app.name)}</h3>
+            <p class="text-sm text-zinc-400">${escapeHtml(app.description || '')}</p>
+          </div>
+          <form onsubmit="return submitApplicationForm('${escapeHtml(app.id)}')" class="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-6 space-y-4">
+            ${questionMarkup}
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-sm px-4 py-3 rounded-lg transition shadow cursor-pointer">Submit Application</button>
+          </form>
+        </div>
+      `;
+    }
+
+    function renderApplicationQuestionInput(question, index, applicationId) {
+      const type = question.type || 'short';
+      const options = Array.isArray(question.options) ? question.options : [];
+      let input = '';
+
+      if (type === 'paragraph') {
+        input = `<textarea required id="submissionAnswer_${index}" placeholder="Type your answer..." class="w-full min-h-24 bg-zinc-950 border border-zinc-900 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500"></textarea>`;
+      } else if (type === 'multiple' && options.length) {
+        input = `<div class="space-y-2">${options.map((option, optionIndex) => `
+          <label class="flex items-center gap-3 rounded-lg border border-zinc-900 bg-zinc-950/60 p-3 text-sm text-zinc-200 cursor-pointer">
+            <input required type="radio" name="answer_${escapeHtml(applicationId)}_${index}" value="${escapeHtml(option)}" class="accent-blue-500">
+            <span>${escapeHtml(option)}</span>
+          </label>
+        `).join('')}</div>`;
+      } else {
+        input = `<input required id="submissionAnswer_${index}" type="text" placeholder="${type === 'multiple' ? 'Answer required' : 'Type your answer...'}" class="w-full bg-zinc-950 border border-zinc-900 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500">`;
+      }
+
+      return `
+        <div class="rounded-xl border border-zinc-900 bg-zinc-950/40 p-5 space-y-3">
+          <label class="text-sm font-black text-white">${escapeHtml(question.text)}</label>
+          ${input}
+        </div>
+      `;
+    }
+
+    function submitApplicationForm(applicationId) {
+      ensureApplicationStorage();
+      const appIndex = activeCommObj.applications.findIndex(item => item.id === applicationId);
+      if (appIndex === -1) {
+        alert('This application form no longer exists.');
+        return false;
+      }
+
+      const app = activeCommObj.applications[appIndex];
+      const answers = (app.questions || []).map((question, index) => {
+        let answer = '';
+        if (question.type === 'multiple') {
+          const selected = document.querySelector(`input[name="answer_${applicationId}_${index}"]:checked`);
+          answer = selected ? selected.value : '';
+        } else {
+          const answerElement = document.getElementById(`submissionAnswer_${index}`);
+          answer = answerElement ? (answerElement.value || '').trim() : '';
+        }
+
+        return {
+          questionId: question.id,
+          questionText: question.text,
+          answer
+        };
+      });
+
+      if (answers.some(answer => !answer.answer)) {
+        alert('Answer every question before submitting.');
+        return false;
+      }
+
+      const submission = {
+        id: `SUB_${Date.now()}`,
+        submittedBy: window.NEXUS_CURRENT_USER || 'Anonymous',
+        submittedAt: new Date().toLocaleString(),
+        status: 'Pending',
+        answers
+      };
+
+      app.submissions = Array.isArray(app.submissions) ? app.submissions : [];
+      app.submissions.push(submission);
+      persistCommunityData();
+
+      const title = document.getElementById('moduleTitle');
+      const subtitle = document.getElementById('moduleSubtitle');
+      const contentBlock = document.getElementById('moduleContentPlacementBlock');
+
+      title.textContent = 'Application Submitted';
+      subtitle.textContent = activeCommObj.name;
+      contentBlock.innerHTML = `
+        <div class="max-w-2xl rounded-2xl border border-emerald-900 bg-emerald-950/30 p-8 space-y-4">
+          <h3 class="text-xl font-black text-white">Submission Received</h3>
+          <p class="text-sm text-emerald-100">Your application for ${escapeHtml(app.name)} has been submitted and is pending review.</p>
+        </div>
+      `;
+      return false;
+    }
+
+    document.addEventListener('click', event => {
+      if (!(event.target instanceof Element)) return;
+      const builderButton = event.target.closest('[data-open-application-builder]');
+      if (!builderButton) return;
+      event.preventDefault();
+      openApplicationBuilderModal(builderButton.getAttribute('data-application-id') || '');
+    });
+
+    function toggleViolationsBox() {
+      const modal = document.getElementById('violationsBoxModal');
+      if(modal.classList.contains('hidden')) {
+        const listContainer = document.getElementById('violationsLogList');
+        listContainer.innerHTML = '';
+
+        if(!activeCommObj || !activeCommObj.history || activeCommObj.history.length === 0) {
+          listContainer.innerHTML = `<p class="text-xs text-zinc-600 italic py-4">No historical records on this community structure.</p>`;
+        } else {
+          activeCommObj.history.forEach(log => {
+            listContainer.innerHTML += `
+              <div class="bg-zinc-900 border border-zinc-800 p-3 rounded-lg flex flex-col space-y-1 text-xs">
+                <div class="flex items-center justify-between">
+                  <span class="text-red-400 font-bold uppercase tracking-wider">${log.action}</span>
+                  <span class="text-[10px] text-zinc-500">${log.timestamp}</span>
+                </div>
+                <p class="text-zinc-300"><span class="text-zinc-500">Reason:</span> ${log.reason}</p>
+              </div>
+            `;
+          });
+        }
+        modal.classList.remove('hidden');
+      } else {
+        modal.classList.add('hidden');
+      }
+    }
+  </script>
+</body>
+</html>

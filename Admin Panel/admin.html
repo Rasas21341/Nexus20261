@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus - Master Admin Operations Control</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    body { background-color: #050508; font-family: 'Inter', -apple-system, sans-serif; }
+    .phase-in-admin { animation: adminFade 0.5s ease-out forwards; opacity: 0; }
+    @keyframes adminFade { from { opacity: 0; } to { opacity: 1; } }
+  </style>
+</head>
+<body class="text-zinc-100 min-h-screen flex flex-col phase-in-admin selection:bg-red-600">
+
+  <header class="w-full border-b border-zinc-800 bg-zinc-950 px-8 py-4 flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <span class="text-red-500 font-black tracking-widest text-sm uppercase">NEXUS ADMIN LAYER</span>
+      <span class="bg-red-950 text-red-400 border border-red-900 font-mono text-[10px] px-2 py-0.5 rounded font-bold">Moderation System</span>
+    </div>
+    <div class="flex items-center space-x-4">
+      <button onclick="openUserModModal()" class="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold px-4 py-2 rounded transition cursor-pointer text-red-400">
+        🛡️ User Moderation
+      </button>
+      <button id="admin-theme-toggle" class="p-2 rounded hover:bg-zinc-800 transition" title="Toggle theme">
+        <svg id="admin-sun-icon" class="w-5 h-5 text-zinc-200 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m8.366-8.366l-.707.707M4.932 19.072l-.707.707M21 12h-1M3 12H2m16.366-8.366l.707-.707M4.932 4.932l.707-.707M12 7a5 5 0 100 10 5 5 0 000-10z"/></svg>
+        <svg id="admin-moon-icon" class="w-5 h-5 text-zinc-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+      </button>
+      <a href="../Main Dashboard/panel.html" class="text-xs font-bold text-zinc-400 hover:text-white transition">&larr; Return to Staff View</a>
+    </div>
+  </header>
+
+  <main class="flex-grow p-8 max-w-5xl w-full mx-auto space-y-8">
+    <div class="space-y-1">
+      <h1 class="text-2xl font-black tracking-tight text-white">Global Community Directory</h1>
+      <p class="text-xs text-zinc-500">Global control for all communities with nexus systems connected.</p>
+    </div>
+
+    <div class="bg-zinc-950 border border-zinc-900 rounded-xl p-6 space-y-4">
+      <h2 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Active Instances Cached</h2>
+      <div id="adminServerMatrix" class="space-y-4"></div>
+    </div>
+  </main>
+
+  <div id="nexusUserModModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 w-full max-w-xl rounded-xl p-6 space-y-5 shadow-2xl overflow-y-auto max-h-[90vh]">
+      <div class="flex justify-between items-start">
+        <div>
+          <h3 class="text-base font-bold text-white">User Moderation Engine</h3>
+          <p class="text-xs text-zinc-500">Query and execute structural accounts moderation restrictions.</p>
+        </div>
+        <button onclick="closeUserModModal()" class="text-zinc-500 hover:text-white font-bold text-sm">✕</button>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-xs font-bold text-zinc-400">Discord Username</label>
+        <div class="flex gap-2">
+          <input type="text" id="userLookupSearchInput" placeholder="Enter full username (e.g. wumpus_nexus)..." class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500 font-medium">
+          <button onclick="lookupNexusUserAccount()" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs px-4 py-2 rounded transition">Enter</button>
+        </div>
+      </div>
+
+      <div id="userQueryResponseMenu" class="hidden border border-zinc-900 bg-zinc-900/20 rounded-lg p-4 space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between border-b border-zinc-900 pb-3 gap-2">
+          <div>
+            <p class="text-[11px] text-zinc-500 uppercase tracking-wider font-bold">Account Targets Matrix</p>
+            <h4 class="text-sm font-bold text-white mt-0.5" id="resDisplayUser">Username: <span class="text-zinc-400 font-normal">--</span></h4>
+            <p class="text-[11px] font-mono text-zinc-400 mt-0.5" id="resDisplayId">Discord ID: --</p>
+          </div>
+          <div class="flex flex-col items-start sm:items-end justify-center">
+            <span class="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded" id="resDisplayStatus">Status: Active</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <h5 class="text-xs font-bold text-zinc-400 uppercase tracking-wide">Moderation Logs</h5>
+            <div id="userProfileLogContainer" class="bg-zinc-950 border border-zinc-900 rounded p-3 text-xs space-y-2 max-h-48 overflow-y-auto font-mono text-zinc-400">
+              </div>
+          </div>
+
+          <div class="space-y-3 bg-zinc-950/60 p-3 rounded border border-zinc-900">
+            <h5 class="text-xs font-bold text-zinc-400 uppercase tracking-wide">Apply Enforcements</h5>
+            
+            <div class="space-y-1">
+              <label class="text-[10px] font-bold text-zinc-500 uppercase">What Moderation?</label>
+              <select id="userEnforcementType" class="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-xs text-white focus:outline-none focus:border-red-500">
+                <option value="Warning">Warning</option>
+                <option value="Account suspension">Account suspension (48-Hours Lockout Outage)</option>
+                <option value="Permanently Ban">Permanently Ban</option>
+              </select>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-[10px] font-bold text-zinc-500 uppercase">Reasoning for moderation?</label>
+              <textarea id="userEnforcementReason" placeholder="State compliance log reference reason context..." class="w-full h-16 bg-zinc-900 border border-zinc-800 rounded p-2 text-xs text-white focus:outline-none focus:border-red-500 resize-none"></textarea>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 pt-1">
+              <div id="liftUserModContainer">
+                </div>
+              <button onclick="submitUserEnforcementAction()" class="bg-red-700 hover:bg-red-600 text-white font-bold text-xs px-4 py-2 rounded transition">Submit Moderation</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminModActionModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 w-full max-w-md rounded-xl p-6 space-y-5 shadow-2xl">
+      <div>
+        <h3 class="text-base font-bold text-white">Moderation Enforcement</h3>
+        <p class="text-xs text-zinc-500">Target Community ID: <span id="targetModCommName" class="text-zinc-300 font-mono font-bold"></span></p>
+      </div>
+      
+      <div class="space-y-1.5">
+        <label class="text-xs font-bold text-zinc-400">What Moderation?</label>
+        <select id="modActionTypeSelect" class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500 font-medium">
+          <option value="Warning">Warning</option>
+          <option value="Suspended">Suspended (24-Hour Active Lockout Outage)</option>
+          <option value="Deletion">Deletion (Permanent Purge After 24 Hours)</option>
+        </select>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-xs font-bold text-zinc-400">Reasoning for Moderation Enforcement</label>
+        <textarea id="modActionReason" placeholder="Provide detailed behavioral or compliance rule log references..." class="w-full h-24 bg-zinc-900 border border-zinc-800 rounded p-3 text-xs text-white focus:outline-none focus:border-red-500 resize-none"></textarea>
+      </div>
+
+      <div class="flex items-center justify-end space-x-3 text-xs font-bold pt-2">
+        <button onclick="closeModActionModal()" class="text-zinc-400 hover:text-white px-4 py-2">Cancel</button>
+        <button onclick="submitAdminEnforcement()" class="bg-red-700 hover:bg-red-600 text-white px-5 py-2.5 rounded transition">Submit Moderation</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminViewModsModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 w-full max-w-lg rounded-xl p-6 space-y-4 shadow-2xl">
+      <div>
+        <h3 class="text-base font-bold text-white">Enforcement Index</h3>
+        <p class="text-xs text-zinc-500">Review status logs or authorize structural appeals clearances.</p>
+      </div>
+      <div id="adminModsLogContainer" class="space-y-2 max-h-64 overflow-y-auto"></div>
+      <div class="flex justify-end pt-2">
+        <button onclick="closeViewModsModal()" class="bg-zinc-900 border border-zinc-800 px-4 py-2 text-xs font-bold rounded text-zinc-300 hover:text-white">Close Window</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="w-full border-t border-zinc-900 bg-black/20 py-4 text-center text-xs text-zinc-700 font-mono">Nexus Administration Panel</footer>
+
+  <script>
+    let selectedTargetCommunityId = '';
+    let selectedActiveTargetUserObj = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initializeMockUserDatabase();
+      renderAdminDirectoryLayout();
+    });
+
+    // Seed mock data for verification if database doesn't exist
+    function initializeMockUserDatabase() {
+      if (!localStorage.getItem('nexus_user_database')) {
+        const seedUsers = [
+          { discordTag: "officialwafflewrld", display: "WaffleWorld", discordId: "1892749204719284", status: "Active", logs: [], moderationMessage: "" },
+          { discordTag: "wumpus_nexus", display: "Nexus Wumpus", discordId: "8472940284710482", status: "Active", logs: [], moderationMessage: "" }
+        ];
+        localStorage.setItem('nexus_user_database', JSON.stringify(seedUsers));
+      }
+    }
+
+    function getAdminCommunityArray() {
+      const cachedListData = localStorage.getItem('nexus_community_data_list');
+      if (!cachedListData) return [];
+      try {
+        const parsed = JSON.parse(cachedListData);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch { return []; }
+    }
+
+    function renderAdminDirectoryLayout() {
+      const matrix = document.getElementById('adminServerMatrix');
+      matrix.innerHTML = '';
+      const communityArray = getAdminCommunityArray();
+
+      if(communityArray.length === 0) {
+        matrix.innerHTML = `<p class="text-xs text-zinc-600 italic py-4">No community server containers initialized anywhere within global local storage fields.</p>`;
+        return;
+      }
+
+      communityArray.forEach(comm => {
+        let statusBadge = `<span class="bg-emerald-950/40 text-emerald-400 border border-emerald-900/60 px-2 py-0.5 rounded font-mono text-[10px]">Active</span>`;
+        if(comm.moderated && comm.moderated !== 'None') {
+          statusBadge = `<span class="bg-red-950 text-red-400 border border-red-900 px-2 py-0.5 rounded font-mono text-[10px] uppercase font-bold">${comm.moderated}</span>`;
+        }
+
+        let viewModsBtn = '';
+        if(comm.history && comm.history.length > 0) {
+          viewModsBtn = `
+            <button onclick="openViewModsModal('${comm.id}')" class="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-[11px] font-bold px-4 py-2 rounded transition cursor-pointer">
+              Logs (${comm.history.length})
+            </button>
+          `;
+        }
+
+        const customTokenString = comm.customCode ? `Code: ${comm.customCode}` : 'No Routing Code';
+
+        matrix.innerHTML += `
+          <div class="bg-zinc-900/40 border border-zinc-900 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex items-center space-x-4">
+              <div class="w-10 h-10 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-sm overflow-hidden">
+                ${comm.logo ? `<img src="${comm.logo}" class="w-full h-full object-cover"/>` : '🏢'}
+              </div>
+              <div>
+                <div class="flex items-center space-x-2">
+                  <h4 class="text-sm font-bold text-white">${comm.name}</h4>
+                  ${statusBadge}
+                </div>
+                <p class="text-[11px] text-zinc-500 font-mono">${comm.id} | Owner: ${comm.ownerId || 'Unknown'} | ${customTokenString}</p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2">
+              ${viewModsBtn}
+              <button onclick="openModActionModal('${comm.id}')" class="bg-red-950/60 hover:bg-red-950 text-red-400 border border-red-900 text-[11px] font-bold px-4 py-2 rounded transition cursor-pointer">
+                Moderation
+              </button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    /* USER MODERATION SYSTEM FUNCTIONS */
+    function openUserModModal() {
+      document.getElementById('nexusUserModModal').classList.remove('hidden');
+      document.getElementById('userQueryResponseMenu').classList.add('hidden');
+      document.getElementById('userLookupSearchInput').value = '';
+    }
+
+    function closeUserModModal() {
+      document.getElementById('nexusUserModModal').classList.add('hidden');
+    }
+
+    function lookupNexusUserAccount() {
+      const searchVal = document.getElementById('userLookupSearchInput').value.trim().toLowerCase();
+      if (!searchVal) return alert('Provide a target username reference.');
+
+      const usersDb = JSON.parse(localStorage.getItem('nexus_user_database') || '[]');
+      // Matches the account only if they have logged in using Nexus 
+      const targetUser = usersDb.find(u => u.discordTag.toLowerCase() === searchVal);
+
+      if (!targetUser) {
+        alert("Account trace exception error: User context data not found within local backdoor storage fields.");
+        document.getElementById('userQueryResponseMenu').classList.add('hidden');
+        return;
+      }
+
+      selectedActiveTargetUserObj = targetUser;
+      displayTargetUserMenuData();
+    }
+
+    function displayTargetUserMenuData() {
+      document.getElementById('userQueryResponseMenu').classList.remove('hidden');
+      document.getElementById('resDisplayUser').innerHTML = `Username: <span class="text-zinc-300">${selectedActiveTargetUserObj.discordTag} (${selectedActiveTargetUserObj.display || 'No Display Name'})</span>`;
+      document.getElementById('resDisplayId').textContent = `Discord ID: ${selectedActiveTargetUserObj.discordId}`;
+      
+      const statusElement = document.getElementById('resDisplayStatus');
+      statusElement.textContent = `Status: ${selectedActiveTargetUserObj.status || 'Active'}`;
+      
+      if (selectedActiveTargetUserObj.status === 'Permanently Ban') {
+        statusElement.className = "text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-900";
+      } else if (selectedActiveTargetUserObj.status === 'Account suspension') {
+        statusElement.className = "text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-900";
+      } else {
+        statusElement.className = "text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-900/60";
+      }
+
+      // Render account log details (Moderation actions & Account deletions)
+      const logsContainer = document.getElementById('userProfileLogContainer');
+      logsContainer.innerHTML = '';
+      if (!selectedActiveTargetUserObj.logs || selectedActiveTargetUserObj.logs.length === 0) {
+        logsContainer.innerHTML = `<p class="text-[10px] italic text-zinc-600">No operations logs registered to user profile.</p>`;
+      } else {
+        selectedActiveTargetUserObj.logs.forEach(log => {
+          logsContainer.innerHTML += `
+            <div class="border-b border-zinc-900 pb-1.5 mb-1.5 last:border-0">
+              <div class="flex justify-between font-bold text-[11px] text-red-400">
+                <span>[${log.type}]</span>
+                <span class="text-zinc-600 text-[9px]">${log.timestamp}</span>
+              </div>
+              <p class="text-[10px] text-zinc-400 mt-0.5 leading-tight"><span class="text-zinc-500">Reason:</span> ${log.reason}</p>
+            </div>
+          `;
+        });
+      }
+
+      // Check enforcement structures to display the "Lift Moderation" action element
+      const liftActionWrapper = document.getElementById('liftUserModContainer');
+      liftActionWrapper.innerHTML = '';
+      if (selectedActiveTargetUserObj.status === 'Account suspension' || selectedActiveTargetUserObj.status === 'Permanently Ban') {
+        liftActionWrapper.innerHTML = `
+          <button onclick="liftActiveUserRestrictions()" class="bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800 text-emerald-400 font-bold text-[11px] px-3 py-2 rounded transition cursor-pointer">
+            Lift Moderation
+          </button>
+        `;
+      }
+    }
+
+    function submitUserEnforcementAction() {
+      if (!selectedActiveTargetUserObj) return;
+
+      const type = document.getElementById('userEnforcementType').value;
+      const reason = document.getElementById('userEnforcementReason').value.trim();
+
+      if (!reason) return alert('Provide text context reason log records to complete execution.');
+
+      const usersDb = JSON.parse(localStorage.getItem('nexus_user_database') || '[]');
+      const targetIndex = usersDb.findIndex(u => u.discordId === selectedActiveTargetUserObj.discordId);
+      if (targetIndex === -1) return alert('Write operation transaction target error lookup.');
+
+      const currentTimestamp = new Date().toLocaleString();
+      
+      // Update historical array entries
+      if (!usersDb[targetIndex].logs) usersDb[targetIndex].logs = [];
+      usersDb[targetIndex].logs.unshift({
+        type: type,
+        reason: reason,
+        timestamp: currentTimestamp
+      });
+
+      // Structural moderation message definition handling
+      const generatedMessage = `Greetings,\n\nUnfortunately, the Nexus moderation team has decided that habitual behavior or the current behavior is unacceptable for the platform. The following reason:\n\nModeration Issued: ${reason}\n\nSigned,\nNexus moderation team.`;
+
+      usersDb[targetIndex].status = type;
+      usersDb[targetIndex].moderationMessage = generatedMessage;
+
+      if (type === 'Account suspension') {
+        // Sets dynamic suspension values calculated for 48 Hours expiration windows
+        usersDb[targetIndex].lockoutExpiration = Date.now() + (48 * 60 * 60 * 1000);
+        // Triggers automated token invalidation log status drops immediately
+        usersDb[targetIndex].forcedDropActive = true; 
+      } else if (type === 'Permanently Ban') {
+        usersDb[targetIndex].forcedDropActive = true; 
+      }
+
+      localStorage.setItem('nexus_user_database', JSON.stringify(usersDb));
+      selectedActiveTargetUserObj = usersDb[targetIndex];
+      
+      document.getElementById('userEnforcementReason').value = '';
+      displayTargetUserMenuData();
+      
+      alert(`User profile enforcement configured dynamically: [${type}]. Forced logout actions updated.`);
+    }
+
+    function liftActiveUserRestrictions() {
+      if (!selectedActiveTargetUserObj) return;
+
+      const usersDb = JSON.parse(localStorage.getItem('nexus_user_database') || '[]');
+      const targetIndex = usersDb.findIndex(u => u.discordId === selectedActiveTargetUserObj.discordId);
+      if (targetIndex === -1) return;
+
+      usersDb[targetIndex].status = "Active";
+      usersDb[targetIndex].moderationMessage = "";
+      delete usersDb[targetIndex].lockoutExpiration;
+      delete usersDb[targetIndex].forcedDropActive;
+
+      usersDb[targetIndex].logs.unshift({
+        type: "Enforcement Voided",
+        reason: "Active structural parameters lifted by standard Administrator authorization review clearances.",
+        timestamp: new Date().toLocaleString()
+      });
+
+      localStorage.setItem('nexus_user_database', JSON.stringify(usersDb));
+      selectedActiveTargetUserObj = usersDb[targetIndex];
+      
+      displayTargetUserMenuData();
+      alert("Enforcement flags cleared. Profiles restored safely.");
+    }
+
+    /* EXISTING SERVER MANAGEMENT CORE ENGINE ROUTINES */
+    function openModActionModal(id) {
+      selectedTargetCommunityId = id;
+      document.getElementById('targetModCommName').textContent = id;
+      
+      const cachedListData = localStorage.getItem('nexus_community_data_list');
+      if(cachedListData) {
+        const communityArray = JSON.parse(cachedListData);
+        const comm = communityArray.find(c => c.id === id);
+        if(comm) {
+          document.getElementById('targetModCommName').textContent = `${comm.name} (${comm.id})`;
+        }
+      }
+      document.getElementById('adminModActionModal').classList.remove('hidden');
+    }
+    
+    function closeModActionModal() { document.getElementById('adminModActionModal').classList.add('hidden'); }
+
+    function submitAdminEnforcement() {
+      const type = document.getElementById('modActionTypeSelect').value;
+      const reason = document.getElementById('modActionReason').value.trim();
+      if (!reason) return alert('Provide text context reason log records to complete execution.');
+
+      const timestampStr = new Date().toLocaleString();
+      const cachedListData = localStorage.getItem('nexus_community_data_list');
+      if(!cachedListData) return;
+
+      let communityArray = JSON.parse(cachedListData);
+      const itemIdx = communityArray.findIndex(c => c.id === selectedTargetCommunityId);
+
+      if (itemIdx === -1) return alert('Target cluster trace exception code reference miss error.');
+
+      communityArray[itemIdx].moderated = type;
+      communityArray[itemIdx].reason = reason;
+      communityArray[itemIdx].moderator = 'officialwafflewrld';
+      communityArray[itemIdx].acknowledged = false; 
+
+      if(type === 'Deletion') {
+        communityArray[itemIdx].deletionDeadline = Date.now() + (24 * 60 * 60 * 1000);
+      } else {
+        delete communityArray[itemIdx].deletionDeadline;
+      }
+
+      if(!communityArray[itemIdx].history) communityArray[itemIdx].history = [];
+      communityArray[itemIdx].history.unshift({
+        action: type,
+        reason: reason,
+        moderator: 'officialwafflewrld',
+        timestamp: timestampStr,
+        appealed: false
+      });
+
+      localStorage.setItem('nexus_community_data_list', JSON.stringify(communityArray));
+      
+      document.getElementById('modActionReason').value = '';
+      closeModActionModal();
+      renderAdminDirectoryLayout();
+      alert(`Enforcement type [${type}] Moderation Sent. [${selectedTargetCommunityId}].`);
+    }
+
+    function openViewModsModal(id) {
+      selectedTargetCommunityId = id;
+      const container = document.getElementById('adminModsLogContainer');
+      container.innerHTML = '';
+
+      const cachedListData = localStorage.getItem('nexus_community_data_list');
+      if(!cachedListData) return;
+
+      const communityArray = JSON.parse(cachedListData);
+      const comm = communityArray.find(c => c.id === id);
+
+      if(!comm || !comm.history) return;
+
+      comm.history.forEach((mod, idx) => {
+        let appealActionBtn = '';
+        if(!mod.appealed) {
+          appealActionBtn = `
+            <button onclick="approveAdminAppeal(${idx})" class="bg-emerald-900 hover:bg-emerald-800 text-emerald-200 border border-emerald-700 px-3 py-1 rounded text-[10px] font-bold transition cursor-pointer">
+              Approve Appeal
+            </button>
+          `;
+        } else {
+          appealActionBtn = `<span class="text-[10px] font-mono text-emerald-400 font-bold uppercase">✓ Approved & Voided</span>`;
+        }
+
+        container.innerHTML += `
+          <div class="bg-zinc-900 border border-zinc-800 p-3 rounded-lg flex flex-col space-y-2 text-xs">
+            <div class="flex items-center justify-between">
+              <span class="text-red-400 font-bold uppercase">${mod.action}</span>
+              <span class="text-[10px] text-zinc-500">${mod.timestamp}</span>
+            </div>
+            <p class="text-zinc-300"><span class="text-zinc-500">Reason:</span> ${mod.reason}</p>
+            <div class="flex items-center justify-between pt-1 border-t border-zinc-950 text-[11px]">
+              <span class="text-zinc-500">By: @${mod.moderator}</span>
+              ${appealActionBtn}
+            </div>
+          </div>
+        `;
+      });
+
+      document.getElementById('adminViewModsModal').classList.remove('hidden');
+    }
+
+    function closeViewModsModal() { document.getElementById('adminViewModsModal').classList.add('hidden'); }
+
+    function approveAdminAppeal(index) {
+      const cachedListData = localStorage.getItem('nexus_community_data_list');
+      if(!cachedListData) return;
+
+      let communityArray = JSON.parse(cachedListData);
+      const itemIdx = communityArray.findIndex(c => c.id === selectedTargetCommunityId);
+
+      if (itemIdx === -1) return;
+
+      communityArray[itemIdx].history[index].appealed = true;
+      communityArray[itemIdx].moderated = 'None';
+      communityArray[itemIdx].reason = '';
+      communityArray[itemIdx].acknowledged = true;
+      delete communityArray[itemIdx].deletionDeadline;
+
+      localStorage.setItem('nexus_community_data_list', JSON.stringify(communityArray));
+      
+      alert('Appeal successfully processed. Active enforcement flags lifted.');
+      closeViewModsModal();
+      renderAdminDirectoryLayout();
+    }
+
+    function updateAdminThemeIcons() {
+      var sun = document.getElementById('admin-sun-icon')
+      var moon = document.getElementById('admin-moon-icon')
+      if (!sun || !moon) return
+      if (document.documentElement.classList.contains('dark')) {
+        sun.classList.add('hidden')
+        moon.classList.remove('hidden')
+      } else {
+        sun.classList.remove('hidden')
+        moon.classList.add('hidden')
+      }
+    }
+
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('#admin-theme-toggle')
+      if (!btn) return
+      e.preventDefault()
+      document.documentElement.classList.toggle('dark')
+      localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light')
+      updateAdminThemeIcons()
+    })
+
+    window.addEventListener('DOMContentLoaded', () => {
+      var saved = localStorage.getItem('theme')
+      if (saved === 'light') {
+        document.documentElement.classList.remove('dark')
+      } else {
+        document.documentElement.classList.add('dark')
+      }
+      updateAdminThemeIcons()
+    });
+  </script>
+</body>
+</html>

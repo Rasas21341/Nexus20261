@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus - Select Server</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    body { background-color: #000000; font-family: 'Inter', -apple-system, sans-serif; }
+    .phase-in { animation: fadeInEffect 1s ease-out forwards; opacity: 0; }
+    @keyframes fadeInEffect { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col justify-between relative selection:bg-blue-600">
+
+  <header class="w-full border-b border-zinc-900 bg-black/40 px-8 py-4 flex items-center justify-between sticky top-0 z-50">
+    <div class="flex items-center space-x-3">
+      <div class="text-2xl font-black tracking-tighter italic select-none">
+        <span class="text-blue-600 pr-[1px]">N</span><span class="text-white opacity-95">EXUS</span>
+      </div>
+      <button onclick="window.location.href='../Admin Panel/admin.html'" id="covertAdminBtn" class="w-4 h-4 rounded bg-zinc-800 hover:bg-blue-600 border border-zinc-700/50 transition-all flex items-center justify-center cursor-pointer" title="System Matrix Link">
+        <span class="text-[9px] text-zinc-500 hover:text-white select-none">■</span>
+      </button>
+    </div>
+    
+    <div class="flex items-center space-x-3">
+      <button onclick="openAccountSettingsModal()" class="p-2 rounded hover:bg-zinc-800 transition" title="Settings">
+        <svg class="w-5 h-5 text-zinc-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </button>
+      <img id="headerDiscordAvatar" class="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 hidden object-cover" src="" alt="User Avatar">
+      <button onclick="logout()" class="text-xs font-semibold text-zinc-500 hover:text-zinc-300 transition cursor-pointer">Sign Out</button>
+    </div>
+  </header>
+
+  <main class="flex-grow flex flex-col items-center justify-center px-4 py-12 phase-in relative">
+    <div class="w-full max-w-6xl text-center space-y-10">
+      
+      <div class="space-y-2">
+        <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+          How's it going, <span id="discordUsername" class="text-blue-500">@Guest</span>
+        </h1>
+        <p class="text-zinc-400 text-sm tracking-wide">Choose the server you want to work in today.</p>
+      </div>
+
+      <div class="flex items-center justify-center gap-4">
+        <button onclick="openCodeModal()" class="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 text-xs font-bold px-6 py-3 rounded transition shadow-md tracking-wide cursor-pointer">Join Server</button>
+        <button id="mainCreateCommunityBtn" onclick="openCommunityModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-6 py-3 rounded transition shadow-md tracking-wide cursor-pointer">Create Community</button>
+      </div>
+
+      <div class="w-full pt-4">
+        <div id="emptyStateBox" class="space-y-2 border border-zinc-900/60 p-8 rounded-xl bg-zinc-950/20 max-w-md mx-auto">
+          <h2 class="text-lg font-bold text-white tracking-tight">No Guilds Found</h2>
+          <p class="text-zinc-500 text-sm">You are in no servers currently using Nexus.</p>
+        </div>
+
+        <div id="multiCommunityFlexGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full text-left">
+          </div>
+      </div>
+
+  </main>
+
+  <div id="accountSettingsModal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 w-full max-w-md rounded-xl p-6 space-y-6 shadow-2xl">
+      
+      <div class="flex items-center space-x-4 p-2 bg-zinc-900/40 border border-zinc-900 rounded-lg">
+        <div id="settingsUserAvatar" class="w-14 h-14 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xl text-white font-bold overflow-hidden">👤</div>
+        <div class="space-y-0.5">
+          <h3 id="settingsUserUsername" class="text-sm font-black text-white">@username</h3>
+          <p id="settingsUserDisplayName" class="text-xs text-zinc-400">Display Name</p>
+          <p id="settingsUserId" class="text-[10px] text-zinc-600 font-mono">ID: 00000000</p>
+        </div>
+      </div>
+
+      <div class="bg-zinc-900/30 border border-zinc-900 p-3 rounded-lg flex flex-col space-y-2">
+        <p class="text-[11px] text-zinc-400 leading-normal">Profile image broken or out of sync? Refreshing your account connection cache links your active credentials again.</p>
+        <button id="refreshAccountBtn" onclick="executeAccountCacheRefresh()" class="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 font-bold text-xs py-2 rounded transition cursor-pointer">
+          Refresh Account
+        </button>
+      </div>
+
+      <hr class="border-zinc-900" />
+
+        <div class="flex items-center justify-between p-3 rounded-lg border border-zinc-800 bg-zinc-900/30">
+          <div>
+            <p class="text-xs font-bold text-white">Theme</p>
+            <p class="text-[10px] text-zinc-400" id="panel-theme-label">Toggle light or dark mode</p>
+          </div>
+          <button id="panel-theme-toggle" title="Toggle theme" class="relative w-12 h-6 rounded-full bg-zinc-700 transition-colors">
+            <span id="panel-theme-dot" class="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform flex items-center justify-center">
+              <span id="panel-theme-text" class="text-[8px] font-black text-zinc-900 leading-none">OFF</span>
+            </span>
+          </button>
+        </div>
+
+      <div class="border border-red-950 bg-red-950/10 p-4 rounded-lg space-y-3">
+        <h4 class="text-xs font-bold text-red-400 tracking-wide uppercase">Danger Zone</h4>
+        <button onclick="executeNexusAccountPurgeSequence()" class="bg-red-900/40 hover:bg-red-600 text-red-200 hover:text-white border border-red-800 px-4 py-2.5 rounded text-xs font-bold transition cursor-pointer w-full text-center uppercase tracking-wider">
+          Delete Account
+        </button>
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button onclick="closeAccountSettingsModal()" class="bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-xs font-bold px-4 py-2 rounded cursor-pointer">Close Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="violationInterceptModal" class="hidden fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border-2 border-red-900 w-full max-w-lg rounded-xl p-8 space-y-6 shadow-2xl relative">
+      <div class="absolute top-4 right-4 text-blue-500">
+        <svg class="w-6 h-6 animate-pulse" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
+      </div>
+      <div class="space-y-1">
+        <h3 class="text-xl font-black text-red-500 uppercase tracking-wide">Community Moderation</h3>
+        <p class="text-sm text-zinc-300 pt-2 font-medium" id="interceptGreeting">Greetings!</p>
+        <p class="text-xs text-zinc-500 font-mono" id="interceptServerName"></p>
+      </div>
+      <div class="bg-zinc-900/80 border border-zinc-800 p-4 rounded-lg text-xs text-zinc-400 space-y-3 leading-relaxed font-mono">
+        <p>We regret to inform you your community has received a <span id="interceptType" class="text-red-400 font-bold underline"></span> moderation.</p>
+        <p><strong>Reasoning:</strong> <span id="interceptReason" class="text-zinc-200"></span></p>
+        <p id="interceptDurationNote" class="text-amber-400 font-semibold"></p>
+      </div>
+      <p class="text-xs text-zinc-500 italic">If you wish to appeal? You have 12 hours to appeal the moderation. After that all moderations are final.</p>
+      <div class="text-xs font-bold text-zinc-400 border-t border-zinc-900 pt-3">
+        Signed, <br><span id="interceptSignatory" class="text-blue-400">Nexus Moderation Team</span>
+      </div>
+      <div class="pt-2 flex justify-end">
+        <button onclick="acknowledgeViolation()" class="bg-red-950 hover:bg-red-900 text-red-200 border border-red-800 px-6 py-2.5 rounded text-xs font-bold transition cursor-pointer">I Understand</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="communityModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 w-full max-w-md rounded-xl p-6 space-y-5 shadow-2xl">
+      <div class="space-y-1"><h3 class="text-lg font-bold text-white">Create New Community</h3></div>
+      <div class="space-y-1.5">
+        <label class="text-xs font-bold text-zinc-400">Community Name</label>
+        <input type="text" id="inputCommName" class="w-full bg-zinc-900 border border-zinc-800 rounded px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-xs font-bold text-zinc-400">Upload Server Logo</label>
+        <div class="border border-dashed border-zinc-800 hover:border-zinc-700 transition rounded-lg p-4 bg-zinc-900/50 flex flex-col items-center justify-center text-center relative">
+          <input type="file" id="inputCommLogo" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer" onchange="handleLogoSelect(event)">
+          <span id="uploadLabel" class="text-xs text-zinc-500">Click to select file logo asset...</span>
+        </div>
+      </div>
+      <div class="flex items-center justify-end space-x-3 text-xs font-bold pt-2">
+        <button onclick="closeCommunityModal()" class="text-zinc-400 hover:text-white px-4 py-2">Cancel</button>
+        <button onclick="submitCommunityCreation()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded transition">Create Instance</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="joinServerModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-zinc-800 w-full max-w-md rounded-xl p-6 space-y-5 shadow-2xl">
+      <div class="space-y-1">
+        <h3 class="text-lg font-bold text-white">Join Community Grid Instance</h3>
+        <p class="text-xs text-zinc-500">Provide the custom platform unique server code token sequence.</p>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-xs font-bold text-zinc-400">Unique Code Token</label>
+        <input type="text" id="joinServerInputCode" placeholder="EX: MY-COMMUNITY-1" class="w-full bg-zinc-900 border border-zinc-800 rounded px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 uppercase">
+      </div>
+      <div class="flex items-center justify-end space-x-3 text-xs font-bold pt-2">
+        <button onclick="closeCodeModal()" class="text-zinc-400 hover:text-white px-4 py-2">Cancel</button>
+        <button onclick="executeCustomCodeJoinSequence()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded transition">Establish Connection</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="w-full border-t border-zinc-900 bg-black/20 py-4 text-center text-xs text-zinc-600">&copy; 2026 Nexus Platform Systems.</footer>
+
+  <script>
+    let uploadedLogoDataUrl = '';
+    let currentActiveUser = 'Guest'; 
+    let currentUserId = ''; 
+    let currentUserDisplayName = ''; 
+    let currentUserAvatarHash = ''; 
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Pull the REAL authenticated Discord identity from the server session.
+      // Never trust cached localStorage identity — that is what caused stale
+      // account data to carry across logins.
+      try {
+        const resp = await fetch('/api/user', { credentials: 'include' });
+        if (!resp.ok) {
+          // No valid session — force back to the login gateway.
+          window.location.href = '/Main%20Dashboard/login%20page.html';
+          return;
+        }
+        const data = await resp.json();
+        if (!data.loggedIn || !data.user) {
+          window.location.href = '/Main%20Dashboard/login%20page.html';
+          return;
+        }
+        currentActiveUser      = data.user.username;
+        currentUserId          = data.user.id;
+        currentUserDisplayName = data.user.global_name || data.user.username;
+        currentUserAvatarHash  = data.user.avatar || '';
+      } catch (err) {
+        window.location.href = '/Main%20Dashboard/login%20page.html';
+        return;
+      }
+      
+      const profileBanDeadline = localStorage.getItem('nexus_profile_exclusion_' + currentActiveUser);
+      if (profileBanDeadline && Date.now() < parseInt(profileBanDeadline)) {
+        const remainingDays = Math.ceil((parseInt(profileBanDeadline) - Date.now()) / (1000 * 60 * 60 * 24));
+        document.body.innerHTML = `
+          <div class="min-h-screen bg-black flex flex-col items-center justify-center text-center p-6 font-sans">
+            <div class="border border-red-900 bg-zinc-950 p-8 rounded-xl max-w-md space-y-4">
+              <h1 class="text-red-500 font-black text-2xl uppercase tracking-wider">Access Restriction Matrix</h1>
+              <p class="text-xs text-zinc-400 leading-relaxed">This identity handle profile data set was purged by explicit user instruction. Secure locks prevent logging in using this Discord parameter context for 7 days.</p>
+              <div class="bg-zinc-900 p-3 rounded font-mono text-xs text-amber-400 font-bold">Lock remaining duration: ${remainingDays} complete calendar days.</div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // Load current profile variables dynamically to keep values persistent across the layout views
+      syncUIAccountProfileData();
+
+      if(localStorage.getItem('adminLockout_' + currentActiveUser)) {
+        const lockTime = parseInt(localStorage.getItem('adminLockout_' + currentActiveUser));
+        if(Date.now() < lockTime) {
+          document.getElementById('covertAdminBtn').style.display = 'none';
+        }
+      }
+
+      evaluateCachedCommunityState();
+    });
+
+    // Unified layout system function to load user identity contexts dynamically everywhere
+    function syncUIAccountProfileData() {
+      // 1. Update text fields explicitly to current user's authenticated handle
+      document.getElementById('discordUsername').textContent = `@${currentActiveUser}`;
+      
+      // 2. Map standard Discord CDN avatar link structural formats cleanly if hashes exist
+      let generatedAvatarUrl = 'https://cdn.discordapp.com/embed/avatars/0.png'; 
+      if (currentUserAvatarHash && currentUserId) {
+        generatedAvatarUrl = `https://cdn.discordapp.com/avatars/${currentUserId}/${currentUserAvatarHash}.png`;
+      }
+
+      const headerAvatar = document.getElementById('headerDiscordAvatar');
+      if (headerAvatar) {
+        headerAvatar.src = generatedAvatarUrl;
+        headerAvatar.classList.remove('hidden');
+      }
+
+      // Sync active state variables back down straight into settings configurations
+      const modalAvatarBox = document.getElementById('settingsUserAvatar');
+      if (modalAvatarBox) {
+        if (currentUserAvatarHash) {
+          modalAvatarBox.innerHTML = `<img src="${generatedAvatarUrl}" class="w-full h-full object-cover" />`;
+        } else {
+          modalAvatarBox.innerHTML = `<span class="uppercase font-black">${currentActiveUser.substring(0,2)}</span>`;
+        }
+      }
+      
+      document.getElementById('settingsUserUsername').textContent = `@${currentActiveUser}`;
+      document.getElementById('settingsUserDisplayName').textContent = currentUserDisplayName || currentActiveUser.toUpperCase();
+      document.getElementById('settingsUserId').textContent = `ID: ${currentUserId}`;
+    }
+
+    // Refresh account trigger mapping to restore image states or rebuild session profiles instantly
+    function executeAccountCacheRefresh() {
+      const btn = document.getElementById('refreshAccountBtn');
+      btn.textContent = 'Refreshing Layout...';
+      btn.disabled = true;
+
+      setTimeout(() => {
+        // Clear layout memory channels and re-index profile data sets cleanly
+        syncUIAccountProfileData();
+        
+        btn.textContent = 'Refresh Account';
+        btn.disabled = false;
+        alert('Account profile imagery references and server session handles successfully refreshed!');
+      }, 800);
+    }
+
+    function evaluateCachedCommunityState() {
+      const container = document.getElementById('multiCommunityFlexGrid');
+      const emptyBox = document.getElementById('emptyStateBox');
+      const createBtn = document.getElementById('mainCreateCommunityBtn');
+      
+      container.innerHTML = '';
+
+      const globalData = localStorage.getItem('nexus_community_data_list');
+      let communityArray = globalData ? JSON.parse(globalData) : [];
+
+      let activeChanges = false;
+      communityArray = communityArray.filter(comm => {
+        if (comm.pendingDeletionTime) {
+          if (Date.now() >= parseInt(comm.pendingDeletionTime)) {
+            activeChanges = true;
+            return false;
+          }
+        }
+        return true;
+      });
+
+      if (activeChanges) {
+        localStorage.setItem('nexus_community_data_list', JSON.stringify(communityArray));
+      }
+
+      let deploymentLocked = false;
+      let lockingReason = '';
+
+      communityArray.forEach(comm => {
+        if (comm.moderated === 'Deletion' && comm.deletionDeadline) {
+          const sevenDayPurgeExpiration = parseInt(comm.deletionDeadline) + (6 * 24 * 60 * 60 * 1000);
+          if (Date.now() > sevenDayPurgeExpiration) {
+            communityArray = communityArray.filter(c => c.id !== comm.id);
+            localStorage.setItem('nexus_community_data_list', JSON.stringify(communityArray));
+            return;
+          }
+          deploymentLocked = true;
+          lockingReason = 'Creation Blocked: A community node under your handle is flagged for pending system Deletion.';
+        }
+
+        if (comm.moderated === 'Suspended') {
+          deploymentLocked = true;
+          lockingReason = 'Creation Blocked: Core moderation limits are currently suspended on an active server container node.';
+        }
+      });
+
+      if (deploymentLocked) {
+        createBtn.disabled = true;
+        createBtn.className = "bg-zinc-800 text-zinc-500 text-xs font-bold px-6 py-3 rounded opacity-50 cursor-not-allowed tracking-wide";
+        createBtn.title = lockingReason;
+      }
+
+      if (communityArray.length === 0) {
+        emptyBox.classList.remove('hidden');
+        return;
+      }
+
+      emptyBox.classList.add('hidden');
+
+      communityArray.forEach(comm => {
+        const logoField = comm.logo || (comm.icon ? `https://cdn.discordapp.com/icons/${comm.id}/${comm.icon}.png` : '');
+        const logoRender = logoField ? `<img src="${logoField}" class="w-full h-full object-cover" />` : '🏢';
+        const uniqueBadgeCode = comm.customCode ? `<span class="bg-blue-950/80 text-blue-400 border border-blue-900/40 px-2 py-0.5 rounded font-mono text-[9px] uppercase">${comm.customCode}</span>` : '<span class="text-[9px] text-zinc-600 font-mono">No Custom Code Set</span>';
+        
+        const deletionLockActive = comm.pendingDeletionTime ? true : false;
+        const disabledClass = deletionLockActive ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer';
+        const onclickDash = deletionLockActive ? `alert('Access Denied: This server community is down for deletion and locked.')` : `launchCommunityLayout('Dashboard', '${comm.id}')`;
+        const onclickMod = deletionLockActive ? `alert('Access Denied: This server community is down for deletion and locked.')` : `launchCommunityLayout('Moderation', '${comm.id}')`;
+
+        const cardHtml = `
+          <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-6 space-y-6 shadow-xl transition-all hover:border-zinc-700 relative">
+            ${deletionLockActive ? '<div class="absolute inset-0 bg-black/40 rounded-xl z-10 flex items-center justify-center"><span class="bg-red-950 text-red-400 text-[10px] font-bold px-3 py-1 rounded border border-red-900 uppercase tracking-widest font-mono">Down For Deletion</span></div>' : ''}
+            <div class="flex items-center space-x-4">
+              <div class="w-12 h-12 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden text-lg">${logoRender}</div>
+              <div class="space-y-1">
+                <h3 class="text-sm font-bold text-white tracking-tight">${comm.name}</h3>
+                ${uniqueBadgeCode}
+              </div>
+            </div>
+            <hr class="border-zinc-900" />
+            <div class="grid grid-cols-2 gap-3">
+              <button onclick="${onclickDash}" class="bg-zinc-900/50 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 p-3 rounded-lg flex items-center space-x-3 text-left transition group ${disabledClass}">
+                <svg class="w-5 h-5 text-blue-500 group-hover:scale-105 transition" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                <span class="text-xs font-bold text-zinc-300 group-hover:text-white transition">Dashboard</span>
+              </button>
+              <button onclick="${onclickMod}" class="bg-zinc-900/50 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 p-3 rounded-lg flex items-center space-x-3 text-left transition group ${disabledClass}">
+                <svg class="w-5 h-5 text-blue-500 group-hover:scale-105 transition" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                <span class="text-xs font-bold text-zinc-300 group-hover:text-white transition">Mod Panel</span>
+              </button>
+            </div>
+          </div>
+        `;
+        container.innerHTML += cardHtml;
+
+        if (comm.moderated && comm.moderated !== 'None' && !comm.acknowledged) {
+          triggerViolationNotice(comm);
+        }
+      });
+    }
+
+    function triggerViolationNotice(comm) {
+      document.getElementById('interceptGreeting').textContent = `Greetings @${currentActiveUser}!`;
+      document.getElementById('interceptType').textContent = comm.moderated;
+      document.getElementById('interceptReason').textContent = comm.reason || 'No explicit tracking context provided.';
+      document.getElementById('interceptSignatory').textContent = `@${comm.moderator}`;
+      document.getElementById('interceptServerName').textContent = `Server: ${comm.name} (${comm.id})`;
+      
+      const noteEl = document.getElementById('interceptDurationNote');
+      if (comm.moderated === 'Suspended') {
+        noteEl.textContent = 'NOTICE: This suspension module will lock core framework rendering workflows for 24 hours.';
+      } else if (comm.moderated === 'Deletion') {
+        noteEl.textContent = 'CRITICAL WARNING: This community profile data container is flagged for permanent termination in 24 hours.';
+      }
+
+      document.getElementById('violationInterceptModal').setAttribute('data-intercept-target-id', comm.id);
+      document.getElementById('violationInterceptModal').classList.remove('hidden');
+    }
+
+    function acknowledgeViolation() {
+      const targetId = document.getElementById('violationInterceptModal').getAttribute('data-intercept-target-id');
+      const globalData = localStorage.getItem('nexus_community_data_list');
+      if (globalData) {
+        let communityArray = JSON.parse(globalData);
+        const itemIdx = communityArray.findIndex(c => c.id === targetId);
+        if (itemIdx !== -1) {
+          communityArray[itemIdx].acknowledged = true;
+          localStorage.setItem('nexus_community_data_list', JSON.stringify(communityArray));
+        }
+      }
+      document.getElementById('violationInterceptModal').classList.add('hidden');
+      evaluateCachedCommunityState();
+    }
+
+    function triggerAdminAuthOverride() {
+      if (currentActiveUser !== 'officialwafflewrld') {
+        alert('Access Denied: Security signature mismatch.');
+        return;
+      }
+      window.location.href = 'admin%20panel/admin.html';
+    }
+
+    function openCommunityModal() {
+      if(document.getElementById('mainCreateCommunityBtn').disabled) {
+        return alert('Action Denied: Locked due to outstanding validation restrictions.');
+      }
+      document.getElementById('communityModal').classList.remove('hidden'); 
+    }
+    
+    function closeCommunityModal() { document.getElementById('communityModal').classList.add('hidden'); }
+    function openCodeModal() { document.getElementById('joinServerModal').classList.remove('hidden'); }
+    function closeCodeModal() { document.getElementById('joinServerModal').classList.add('hidden'); }
+
+    function openAccountSettingsModal() {
+      syncUIAccountProfileData();
+      document.getElementById('accountSettingsModal').classList.remove('hidden');
+    }
+    function closeAccountSettingsModal() { document.getElementById('accountSettingsModal').classList.add('hidden'); }
+
+    function executeNexusAccountPurgeSequence() {
+      if (confirm('Are you sure that you want to delete your discord account from Nexus')) {
+        alert('Notice: If you proceed, you will not be able to sign back in or to be able to sign back up for the next seven days.');
+        
+        const lockoutExpiration = Date.now() + (7 * 24 * 60 * 60 * 1000);
+        localStorage.setItem('nexus_profile_exclusion_' + currentActiveUser, lockoutExpiration.toString());
+        
+        alert('Account deleted successfully from Nexus cores. Returning to Dashboard environment.');
+        window.location.href = 'index.html';
+      }
+    }
+
+    function handleLogoSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        document.getElementById('uploadLabel').textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = function(e) { uploadedLogoDataUrl = e.target.result; }
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function submitCommunityCreation() {
+      const name = document.getElementById('inputCommName').value.trim();
+      if (!name) return alert('Input valid title name context.');
+
+      const globalData = localStorage.getItem('nexus_community_data_list');
+      let communityArray = globalData ? JSON.parse(globalData) : [];
+
+      const newCommObj = {
+        id: 'COMM_' + Date.now(),
+        name: name,
+        logo: uploadedLogoDataUrl || '',
+        moderated: 'None',
+        reason: '',
+        moderator: '',
+        acknowledged: false,
+        customCode: '',
+        history: [],
+        punishments: [],
+        members: [
+          {
+            username: currentActiveUser,
+            discordTag: `${currentActiveUser}#0000`,
+            discordId: 'ID_' + Math.floor(100000 + Math.random() * 900000),
+            role: 'Owner',
+            avatar: ''
+          }
+        ]
+      };
+
+      communityArray.push(newCommObj);
+      localStorage.setItem('nexus_community_data_list', JSON.stringify(communityArray));
+      
+      uploadedLogoDataUrl = '';
+      document.getElementById('inputCommName').value = '';
+      document.getElementById('uploadLabel').textContent = "Click to select file logo asset...";
+      
+      evaluateCachedCommunityState();
+      closeCommunityModal();
+    }
+
+    function executeCustomCodeJoinSequence() {
+      const enteredCode = document.getElementById('joinServerInputCode').value.trim().toUpperCase();
+      if(!enteredCode) return alert('Provide a validation connection code.');
+
+      const globalData = localStorage.getItem('nexus_community_data_list');
+      if(!globalData) return alert('No active identification registry nodes found.');
+
+      let communityArray = JSON.parse(globalData);
+      const matchedComm = communityArray.find(c => c.customCode && c.customCode.toUpperCase() === enteredCode);
+
+      if (!matchedComm) return alert('No active community owns this custom code.');
+      if (matchedComm.pendingDeletionTime) return alert('Access Denied: This server community is down for deletion.');
+
+      const memberExists = matchedComm.members.some(m => m.username === currentActiveUser);
+      if (!memberExists) {
+        matchedComm.members.push({
+          username: currentActiveUser,
+          discordTag: `${currentActiveUser}#1234`,
+          discordId: 'ID_' + Math.floor(100000 + Math.random() * 900000),
+          role: 'Member',
+          avatar: ''
+        });
+        localStorage.setItem('nexus_community_data_list', JSON.stringify(communityArray));
+      }
+
+      closeCodeModal();
+      document.getElementById('joinServerInputCode').value = '';
+      window.location.href = `community.html?id=${matchedComm.id}&init=Dashboard`;
+    }
+
+    function launchCommunityLayout(view, communityId) {
+      window.location.href = (view === 'Moderation') ? `mpanel.html?id=${communityId}` : `community.html?id=${communityId}&init=${view}`;
+    }
+
+    function logout() {
+      // Wipe any cached client-side account state so nothing carries over
+      // to the next account that signs in on this browser.
+      localStorage.removeItem('nexus_logged_in_user');
+      sessionStorage.clear();
+      // Destroy the server session and redirect to the login gateway.
+      window.location.href = '/logout';
+    }
+
+    function syncPanelThemeUI() {
+      var btn = document.getElementById('panel-theme-toggle')
+      var dot = document.getElementById('panel-theme-dot')
+      var text = document.getElementById('panel-theme-text')
+      if (!btn || !dot) return
+      var isDark = document.documentElement.classList.contains('dark')
+      btn.classList.toggle('bg-zinc-700', isDark)
+      btn.classList.toggle('bg-blue-600', !isDark)
+      dot.classList.toggle('translate-x-6', !isDark)
+      dot.classList.toggle('translate-x-0', isDark)
+      if (text) {
+        text.textContent = isDark ? 'ON' : 'OFF'
+      }
+    }
+
+    function initPanelTheme() {
+      var saved = localStorage.getItem('theme')
+      if (saved === 'light') {
+        document.documentElement.classList.remove('dark')
+      } else {
+        document.documentElement.classList.add('dark')
+      }
+      syncPanelThemeUI()
+    }
+
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('#panel-theme-toggle')
+      if (!btn) return
+      e.preventDefault()
+      document.documentElement.classList.toggle('dark')
+      localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light')
+      syncPanelThemeUI()
+    })
+    document.addEventListener('DOMContentLoaded', initPanelTheme)
+  </script>
+</body>
+</html>

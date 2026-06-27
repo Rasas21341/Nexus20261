@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus - Moderation Console</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    body { background-color: #050505; color: #e5e7eb; font-family: 'Inter', sans-serif; }
+    .gradient-text { 
+      background: linear-gradient(to right, #3b82f6, #ffffff); 
+      -webkit-background-clip: text; 
+      background-clip: text; 
+      -webkit-text-fill-color: transparent; 
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-slide { animation: slideIn 0.3s ease-out forwards; }
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+  </style>
+</head>
+<body class="p-6">
+
+  <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 h-[85vh]">
+    
+    <section class="bg-[#0a0a0a] border border-zinc-800 rounded-2xl p-8 flex flex-col">
+      <h1 class="text-2xl font-black gradient-text mb-8">NEXUS</h1>
+      
+      <div class="flex-grow space-y-6">
+        <div class="relative">
+          <label class="block text-xs font-bold text-zinc-400 mb-2">Username</label>
+          <input type="text" id="userSearch" placeholder="Search Roblox username..." autocomplete="off" class="w-full bg-[#121212] border border-zinc-800 rounded-lg p-3 text-sm focus:border-blue-500 outline-none transition">
+          <div id="usernameSuggestions" class="absolute z-10 w-full mt-1 bg-[#1a1a1a] border border-zinc-700 rounded-lg hidden max-h-48 overflow-y-auto custom-scroll"></div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-zinc-400 mb-2">Moderation Type</label>
+          <select id="modType" class="w-full bg-[#121212] border border-zinc-800 rounded-lg p-3 text-sm outline-none">
+            <option>Warning</option>
+            <option>Kick</option>
+            <option>Ban</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-zinc-400 mb-2">Reason</label>
+          <textarea id="modReason" class="w-full h-32 bg-[#121212] border border-zinc-800 rounded-lg p-3 text-sm outline-none resize-none" placeholder="Type your reason here."></textarea>
+        </div>
+      </div>
+
+      <button onclick="submitModeration()" class="w-full bg-zinc-200 hover:bg-white text-black font-black py-3 rounded-lg transition mt-6">
+        Create Moderation
+      </button>
+    </section>
+
+    <section class="bg-[#0a0a0a] border border-zinc-800 rounded-2xl p-6 flex flex-col overflow-hidden">
+      <div class="mb-6">
+        <input type="text" id="rightPanelSearch" placeholder="Search user to inspect..." onkeydown="if(event.key==='Enter') fetchRobloxUser()" class="w-full bg-[#121212] border border-zinc-800 rounded-lg p-3 text-xs focus:border-blue-500 outline-none">
+      </div>
+
+      <div class="flex border-b border-zinc-800 mb-6 gap-4">
+        <button id="tabAccount" onclick="switchTab('account')" class="pb-2 text-sm font-bold border-b-2 border-white">Account</button>
+        <button id="tabLogs" onclick="switchTab('logs')" class="pb-2 text-sm font-bold text-zinc-500 hover:text-zinc-300">Moderations</button>
+      </div>
+
+      <div id="inspectorArea" class="flex-grow flex flex-col overflow-y-auto custom-scroll">
+        <div id="userData" class="space-y-4">
+          <div class="flex items-center gap-4">
+            <div id="userAvatar" class="w-16 h-16 bg-zinc-900 rounded-xl flex items-center justify-center text-zinc-600">👤</div>
+            <div>
+              <h2 id="userName" class="text-lg font-bold">No User</h2>
+              <p id="userId" class="text-xs text-zinc-500">There is no currently searched user.</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="logsList" class="hidden flex-col gap-3"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const userSearch = document.getElementById('userSearch');
+    const suggestionsBox = document.getElementById('usernameSuggestions');
+    let debounceTimer;
+
+    userSearch.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      const query = userSearch.value.trim();
+      if (query.length < 1) {
+        suggestionsBox.classList.add('hidden');
+        return;
+      }
+      debounceTimer = setTimeout(() => fetchSuggestions(query), 200);
+    });
+
+    userSearch.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const first = suggestionsBox.querySelector('.suggestion-item');
+        if (first) {
+          selectSuggestion(first.dataset.username, first.dataset.id);
+        } else {
+          fetchRobloxUser();
+        }
+        suggestionsBox.classList.add('hidden');
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#userSearch') && !e.target.closest('#usernameSuggestions')) {
+        suggestionsBox.classList.add('hidden');
+      }
+    });
+
+    async function fetchSuggestions(query) {
+      try {
+        const res = await fetch(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.data && data.data.length > 0) {
+          suggestionsBox.innerHTML = data.data.map(user => `
+            <div class="suggestion-item px-3 py-2 hover:bg-zinc-800 cursor-pointer text-sm flex items-center gap-2" data-username="${user.name}" data-id="${user.id}">
+              <img src="https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=420&height=420&format=png" class="w-6 h-6 rounded-full bg-zinc-900">
+              <span>${user.name}</span>
+            </div>
+          `).join('');
+          suggestionsBox.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('click', () => selectSuggestion(item.dataset.username, item.dataset.id));
+          });
+          suggestionsBox.classList.remove('hidden');
+        } else {
+          suggestionsBox.classList.add('hidden');
+        }
+      } catch (err) {
+        console.error('Suggestions fetch failed', err);
+      }
+    }
+
+    function selectSuggestion(username, id) {
+      userSearch.value = username;
+      document.getElementById('userName').textContent = username;
+      document.getElementById('userId').textContent = 'ID: ' + id;
+      document.getElementById('userAvatar').innerHTML = `<img src="https://www.roblox.com/headshot-thumbnail/image?userId=${id}&width=420&height=420&format=png" class="rounded-xl">`;
+      suggestionsBox.classList.add('hidden');
+    }
+
+    // Fetch user from Roblox API
+    async function fetchRobloxUser(overrideUsername) {
+      const username = overrideUsername || document.getElementById('rightPanelSearch').value;
+      if (!username) return;
+
+      const url = `https://users.roproxy.com/v1/usernames/users`;
+      
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usernames: [username], excludeBannedUsers: false })
+        });
+        const data = await response.json();
+        
+        if(data.data && data.data.length > 0) {
+          const user = data.data[0];
+          document.getElementById('userName').textContent = user.requestedUsername;
+          document.getElementById('userId').textContent = 'ID: ' + user.id;
+          document.getElementById('userAvatar').innerHTML = `<img src="https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=420&height=420&format=png" class="rounded-xl">`;
+        } else {
+          alert("User not found.");
+        }
+      } catch (err) {
+        console.error("Fetch failed", err);
+      }
+    }
+
+    // Submit log with slide effect
+    function submitModeration() {
+      const userNameEl = document.getElementById('userName');
+      const userIdEl = document.getElementById('userId');
+      const currentUsername = userNameEl.textContent;
+      const currentUserId = userIdEl.textContent.replace('ID: ', '');
+      const currentAvatar = document.getElementById('userAvatar').innerHTML;
+      const reason = document.getElementById('modReason').value.trim();
+      const type = document.getElementById('modType').value;
+
+      if (currentUsername === 'No User' || !currentUsername) {
+        return alert('Select a valid user before creating a moderation.');
+      }
+      if (!reason) {
+        return alert('Please provide a reason for the moderation.');
+      }
+
+      const timestampStr = new Date().toLocaleString();
+      const logEntry = {
+        username: currentUsername,
+        userId: currentUserId,
+        type: type,
+        reason: reason,
+        timestamp: timestampStr,
+        moderator: 'staff',
+        avatarHTML: currentAvatar
+      };
+
+      const existingLogs = JSON.parse(localStorage.getItem('nexus_mod_log') || '[]');
+      existingLogs.unshift(logEntry);
+      localStorage.setItem('nexus_mod_log', JSON.stringify(existingLogs));
+
+      document.getElementById('modReason').value = '';
+      switchTab('logs');
+      loadModLogs();
+    }
+
+    function loadModLogs() {
+      const logsList = document.getElementById('logsList');
+      const allLogs = JSON.parse(localStorage.getItem('nexus_mod_log') || '[]');
+      logsList.innerHTML = '';
+      
+      if (allLogs.length === 0) {
+        logsList.innerHTML = '<p class="text-xs text-zinc-600 italic text-center py-4">No moderations recorded yet.</p>';
+        return;
+      }
+
+      allLogs.forEach(log => {
+        const entry = document.createElement('div');
+        entry.className = 'bg-[#121212] p-4 rounded-xl border border-zinc-800 animate-slide';
+        entry.innerHTML = `
+          <div class="flex items-center gap-3 mb-2">
+            ${log.avatarHTML || '<div class="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center text-zinc-600 text-xs">👤</div>'}
+            <div>
+              <div class="font-bold text-sm text-blue-400">${log.type}</div>
+              <div class="text-xs text-zinc-500">${log.username} (ID: ${log.userId})</div>
+            </div>
+          </div>
+          <p class="text-xs text-zinc-400 mt-1">${log.reason}</p>
+          <p class="text-[10px] text-zinc-600 mt-2 font-mono">${log.timestamp} • By: ${log.moderator}</p>
+        `;
+        logsList.appendChild(entry);
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadModLogs();
+    });
+
+    // Tab switching logic
+    function switchTab(tab) {
+      document.getElementById('userData').classList.toggle('hidden', tab !== 'account');
+      document.getElementById('logsList').classList.toggle('hidden', tab !== 'logs');
+      
+      document.getElementById('tabAccount').classList.toggle('border-white', tab === 'account');
+      document.getElementById('tabAccount').classList.toggle('text-zinc-500', tab !== 'account');
+      
+      document.getElementById('tabLogs').classList.toggle('border-white', tab === 'logs');
+      document.getElementById('tabLogs').classList.toggle('text-zinc-500', tab !== 'logs');
+    }
+  </script>
+</body>
+</html>

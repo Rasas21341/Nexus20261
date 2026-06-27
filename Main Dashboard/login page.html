@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus - Discord Login</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #050505; color: #f8fafc; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <header class="w-full px-8 py-6 flex items-center justify-between">
+    <a href="index.html" class="text-2xl font-black tracking-tighter italic select-none block hover:opacity-90 transition">
+      <span class="text-blue-600 pr-[1px]">N</span><span class="text-white opacity-95">EXUS</span>
+    </a>
+    <div class="flex items-center space-x-6">
+      <a href="https://discord.gg/b9bex39QSH" class="text-sm font-medium text-slate-400 hover:text-white transition">Nexus Discord Server</a>
+      <a href="index.html" class="bg-white text-slate-900 px-5 py-2 rounded-full text-sm font-bold hover:bg-slate-200 transition">Dashboard</a>
+    </div>
+  </header>
+  <main class="flex-grow flex items-center justify-center px-4">
+    <div class="w-full max-w-md bg-[#0f172a] p-8 rounded-2xl border border-slate-800 shadow-2xl text-center space-y-6">
+
+      <div class="space-y-2">
+        <h2 class="text-2xl font-bold text-white tracking-tight">Welcome to the Portal</h2>
+        <p class="text-sm text-slate-400">
+          Gain access to your ERLC community management tools.
+        </p>
+      </div>
+      <div class="space-y-3">
+        <input 
+          type="password" 
+          id="websitePassword" 
+          placeholder="Enter website password" 
+          class="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 transition placeholder:text-slate-500"
+        />
+        <p id="passwordError" class="text-red-400 text-xs hidden">Incorrect password. Please try again.</p>
+      </div>
+      <button
+        id="discordLoginBtn"
+        class="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold py-3.5 px-4 rounded-lg flex items-center justify-center space-x-3 transition duration-150 shadow-lg group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled
+      >
+        <svg class="w-5 h-5 fill-white" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg">
+          <path d="M107.7,8.07A105.15,105.15,0,0,0,77.26,0a77.19,77.19,0,0,0-3.3,6.83A96.67,96.67,0,0,0,53.22,6.83,77.19,77.19,0,0,0,49.88,0,105.15,105.15,0,0,0,19.44,8.07C3.66,31.58-1.86,54.65,1,77.53A105.73,105.73,0,0,0,32,96.36a74.37,74.37,0,0,0,6.72-10.93,68.6,68.6,0,0,1-10.64-5.12c.91-.67,1.81-1.37,2.67-2.1a75.22,75.22,0,0,0,72.68,0c.87.73,1.76,1.43,2.67,2.1a68.86,68.86,0,0,1-10.64,5.12,74.74,74.74,0,0,0,6.72,10.93,105.73,105.73,0,0,0,31.6-18.83C129.58,50.14,123.76,27.32,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53S36.18,40.36,42.45,40.36,53.83,46,53.83,53,48.72,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.24,60,73.24,53S78.41,40.36,84.69,40.36,96.07,46,96.07,53,91,65.69,84.69,65.69Z"/>
+        </svg>
+        <span class="text-sm">Sign in with Discord</span>
+      </button>
+      <p class="text-[11px] text-slate-500 leading-normal">
+        By logging in, you authorize Nexus to access your basic Discord profile credentials to load your server management access permissions.
+      </p>
+    </div>
+  </main>
+  <footer class="w-full py-6 text-center text-xs text-slate-600">
+    &copy; 2026 Nexus Platform. Built for Emergency Response: Liberty County communities.
+  </footer>
+  <script>
+    const CORRECT_PASSWORD = 'NEXUSBETA.ONE';
+    const passwordInput = document.getElementById('websitePassword');
+    const passwordError = document.getElementById('passwordError');
+    const discordLoginBtn = document.getElementById('discordLoginBtn');
+
+    passwordInput.addEventListener('input', () => {
+      if (passwordInput.value === CORRECT_PASSWORD) {
+        passwordError.classList.add('hidden');
+        discordLoginBtn.disabled = false;
+      } else {
+        discordLoginBtn.disabled = true;
+      }
+    });
+
+    passwordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && passwordInput.value === CORRECT_PASSWORD) {
+        passwordError.classList.add('hidden');
+        discordLoginBtn.click();
+      }
+    });
+
+    discordLoginBtn.addEventListener('click', () => {
+      const CLIENT_ID = '1513645842983161906';
+      const REDIRECT_URI = encodeURIComponent('http://localhost:3000/auth/discord/callback');
+      const RESPONSE_TYPE = 'code';
+      const SCOPE = encodeURIComponent('identify');
+      
+      const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=${RESPONSE_TYPE}&scope=${SCOPE}`;
+      window.location.href = discordAuthUrl;
+    });
+  </script>
+</body>
+</html>
